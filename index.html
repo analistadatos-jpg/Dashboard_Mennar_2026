@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MENNAR S.A.S - Panel de Analítica 2026</title>
     
+    <!-- CDNs de Rendimiento -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -22,8 +23,8 @@
         }
     </script>
     <style>
-        body { background-color: #f4f6f9; color: #212121; font-family: 'Segoe UI', system-ui, sans-serif; }
-        .card-shadow { box-shadow: 0 2px 8px rgba(0,51,102,0.08); }
+        body { background-color: #f4f6f9; color: #212121; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        .card-shadow { box-shadow: 0 2px 8px rgba(0, 51, 102, 0.08); }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
@@ -37,20 +38,18 @@
                 <div class="bg-white text-mennar-blue font-black rounded-lg w-8 h-8 flex items-center justify-center shadow">M</div>
                 <div>
                     <h1 class="text-lg font-bold leading-none">MENNAR S.A.S — Dashboard 2026</h1>
-                    <p class="text-[11px] text-blue-200">Panel Ultrarrápido optimizado con Caché Local</p>
+                    <p class="text-[11px] text-blue-200">Panel Optimizado de Alto Rendimiento</p>
                 </div>
             </div>
 
-            <div class="flex items-center gap-2">
-                <button onclick="forceReloadFromGitHub()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3 py-1.5 rounded flex items-center gap-1.5 transition">
-                    <i class="fa-solid fa-rotate"></i>
-                    <span>Forzar Recarga GitHub</span>
-                </button>
-            </div>
+            <button onclick="loadDataFromGitHub()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3 py-1.5 rounded flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-rotate"></i>
+                <span>Recargar Datos GitHub</span>
+            </button>
         </div>
     </header>
 
-    <!-- NAVEGACIÓN -->
+    <!-- Pestañas de Navegación -->
     <div class="bg-white border-b sticky top-[52px] z-40 card-shadow">
         <div class="max-w-7xl mx-auto px-4 flex space-x-6 text-xs font-bold text-gray-600">
             <button id="tab-facturacion" onclick="switchTab('facturacion')" class="py-3 border-b-2 border-mennar-blue text-mennar-blue flex items-center gap-2">
@@ -65,30 +64,28 @@
         </div>
     </div>
 
-    <!-- ESTADO DE CARGA -->
+    <!-- Indicador de Carga -->
     <div class="max-w-7xl mx-auto px-4 mt-3 w-full">
         <div class="bg-white p-2.5 rounded-lg border card-shadow flex justify-between items-center text-xs">
             <div class="flex items-center gap-2">
-                <i id="status-icon" class="fa-solid fa-bolt text-amber-500"></i>
-                <span id="status-msg" class="font-medium text-gray-700">Inicializando sistema...</span>
+                <i id="status-icon" class="fa-solid fa-spinner fa-spin text-blue-600"></i>
+                <span id="status-msg" class="font-medium text-gray-700">Cargando repositorios...</span>
             </div>
             <div class="flex gap-4 font-bold">
-                <span class="text-blue-700">Ventas: <span id="cnt-fact">0</span></span>
-                <span class="text-amber-700">Remisiones: <span id="cnt-rem">0</span></span>
+                <span class="text-blue-700">Ventas: <span id="cnt-fact">0</span> reg</span>
+                <span class="text-amber-700">Remisiones: <span id="cnt-rem">0</span> reg</span>
             </div>
         </div>
     </div>
 
-    <!-- MAIN -->
+    <!-- Contenido Principal -->
     <main class="max-w-7xl mx-auto px-4 py-3 w-full flex-grow space-y-4">
 
-        <!-- FILTROS ULTRARRÁPIDOS -->
+        <!-- Barra de Filtros -->
         <div class="bg-white p-3 rounded-lg card-shadow grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
             <div>
                 <label class="block font-semibold text-gray-600 mb-1">Tipo Contrato</label>
-                <select id="flt-contractual" onchange="applyFilters()" class="w-full p-1.5 border rounded bg-gray-50">
-                    <option value="">Todos</option>
-                </select>
+                <select id="flt-contractual" onchange="applyFilters()" class="w-full p-1.5 border rounded bg-gray-50"><option value="">Todos</option></select>
             </div>
             <div>
                 <label class="block font-semibold text-gray-600 mb-1">Mes 2026</label>
@@ -108,19 +105,15 @@
             </div>
             <div>
                 <label class="block font-semibold text-gray-600 mb-1">Cliente / E.S.E</label>
-                <select id="flt-client" onchange="applyFilters()" class="w-full p-1.5 border rounded bg-gray-50">
-                    <option value="">Todos</option>
-                </select>
+                <select id="flt-client" onchange="applyFilters()" class="w-full p-1.5 border rounded bg-gray-50"><option value="">Todos</option></select>
             </div>
             <div>
                 <label class="block font-semibold text-gray-600 mb-1">Bodega</label>
-                <select id="flt-bodega" onchange="applyFilters()" class="w-full p-1.5 border rounded bg-gray-50">
-                    <option value="">Todas</option>
-                </select>
+                <select id="flt-bodega" onchange="applyFilters()" class="w-full p-1.5 border rounded bg-gray-50"><option value="">Todas</option></select>
             </div>
             <div>
                 <label class="block font-semibold text-gray-600 mb-1">Búsqueda Rápida</label>
-                <input type="text" id="flt-search" oninput="applyFilters()" placeholder="Filtrar al instante..." class="w-full p-1.5 border rounded bg-gray-50">
+                <input type="text" id="flt-search" oninput="applyFilters()" placeholder="Buscar documento, NIT..." class="w-full p-1.5 border rounded bg-gray-50">
             </div>
         </div>
 
@@ -136,7 +129,7 @@
                     <h3 id="kpi-docs" class="text-base font-bold text-emerald-700">0</h3>
                 </div>
                 <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-amber-500">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Unidades</p>
+                    <p class="text-[10px] uppercase font-bold text-gray-400">Unidades Facturadas</p>
                     <h3 id="kpi-units" class="text-base font-bold text-amber-600">0</h3>
                 </div>
                 <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-purple-600">
@@ -161,7 +154,7 @@
         <div id="view-remisiones" class="space-y-4 hidden">
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-blue-600">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Pedidas</p>
+                    <p class="text-[10px] uppercase font-bold text-gray-400">Unidades Pedidas</p>
                     <h3 id="kpi-rem-ped" class="text-base font-bold text-blue-700">0</h3>
                 </div>
                 <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-emerald-600">
@@ -173,13 +166,13 @@
                     <h3 id="kpi-rem-fac" class="text-base font-bold text-purple-700">0</h3>
                 </div>
                 <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-red-500">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Pendientes (Debemos)</p>
+                    <p class="text-[10px] uppercase font-bold text-gray-400">Pendientes (Le Debemos)</p>
                     <h3 id="kpi-rem-pen" class="text-base font-bold text-red-600">0</h3>
                 </div>
             </div>
 
             <div class="bg-white p-3 rounded-lg card-shadow">
-                <h4 class="text-xs font-bold text-mennar-blue mb-2">Resumen Pedido vs Despachado</h4>
+                <h4 class="text-xs font-bold text-mennar-blue mb-2">Comparativo General de Despacho</h4>
                 <div class="h-[220px] relative"><canvas id="chart-rem-comp"></canvas></div>
             </div>
         </div>
@@ -188,26 +181,26 @@
         <div id="view-pendientes" class="space-y-4 hidden">
             <div class="bg-red-50 p-3 rounded-lg border-l-4 border-red-600 flex justify-between items-center text-xs text-red-900">
                 <div>
-                    <h4 class="font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Deuda Consolidada a Clientes</h4>
-                    <p>Medicamentos pendientes de entrega 2026</p>
+                    <h4 class="font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Control de Deuda por Cliente</h4>
+                    <p>Medicamentos pedidos pendientes por entregar en 2026</p>
                 </div>
                 <button onclick="downloadPendientesExcel()" class="bg-emerald-600 text-white font-bold px-3 py-1.5 rounded shadow text-xs hover:bg-emerald-700">
-                    <i class="fa-solid fa-file-excel mr-1"></i> Descargar Excel
+                    <i class="fa-solid fa-file-excel mr-1"></i> Descargar Reporte
                 </button>
             </div>
 
             <div class="bg-white rounded-lg card-shadow overflow-hidden">
-                <div class="p-2.5 bg-mennar-blue text-white text-xs font-bold">DEUDA POR CLIENTE</div>
+                <div class="p-2.5 bg-mennar-blue text-white text-xs font-bold">SALDO PENDIENTE ACUMULADO</div>
                 <div class="overflow-x-auto max-h-[250px]">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-gray-100 text-gray-700 sticky top-0">
                             <tr>
-                                <th class="p-2">NIT</th>
-                                <th class="p-2">Cliente</th>
-                                <th class="p-2">Contrato</th>
-                                <th class="p-2 text-right">Pedidas</th>
-                                <th class="p-2 text-right">Entregadas</th>
-                                <th class="p-2 text-right text-red-600">Pendientes</th>
+                                <th class="p-2">NIT Tercero</th>
+                                <th class="p-2">Cliente / E.S.E</th>
+                                <th class="p-2">Tipo Contrato</th>
+                                <th class="p-2 text-right">Cant. Pedida</th>
+                                <th class="p-2 text-right">Cant. Entregada</th>
+                                <th class="p-2 text-right text-red-600 font-bold">Saldo Pendiente</th>
                             </tr>
                         </thead>
                         <tbody id="tbl-deuda-body" class="divide-y"></tbody>
@@ -216,14 +209,14 @@
             </div>
         </div>
 
-        <!-- TABLA PRINCIPAL CON PAGINACIÓN (OPTIMIZADA) -->
+        <!-- TABLA PRINCIPAL OPTIMIZADA CON PAGINACIÓN -->
         <div class="bg-white rounded-lg card-shadow overflow-hidden">
             <div class="p-2.5 bg-gray-50 border-b flex justify-between items-center text-xs">
-                <span class="font-bold text-mennar-blue"><i class="fa-solid fa-list mr-1"></i> Registros Filtrados: <span id="lbl-total-rec">0</span></span>
+                <span class="font-bold text-mennar-blue"><i class="fa-solid fa-list mr-1"></i> Registros Encontrados: <span id="lbl-total-rec">0</span></span>
                 <div class="flex items-center gap-2">
-                    <button onclick="changePage(-1)" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold">&lt;</button>
-                    <span>Pág <span id="lbl-page">1</span> / <span id="lbl-total-pages">1</span></span>
-                    <button onclick="changePage(1)" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold">&gt;</button>
+                    <button onclick="changePage(-1)" class="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700">&lt;</button>
+                    <span>Página <span id="lbl-page">1</span> de <span id="lbl-total-pages">1</span></span>
+                    <button onclick="changePage(1)" class="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700">&gt;</button>
                 </div>
             </div>
             <div class="overflow-x-auto max-h-[260px]">
@@ -234,7 +227,7 @@
                             <th class="p-2">Documento</th>
                             <th class="p-2">Fecha</th>
                             <th class="p-2">NIT</th>
-                            <th class="p-2">Cliente</th>
+                            <th class="p-2">Cliente / E.S.E</th>
                             <th class="p-2">Bodega</th>
                             <th class="p-2">Producto</th>
                             <th class="p-2 text-right">Cant.</th>
@@ -253,88 +246,39 @@
         const REM_FOLDERS = ['Enero_Remisiones','Febrero_Remisiones','Marzo_Remisiones','Abril_Remisiones','Mayo_Remisiones','Junio_Remisiones','Julio_Remisiones','Agosto_Remisiones','Septiembre_Remisiones','Octubre_Remisiones'];
         const VEN_FOLDERS = ['Enero_ventas','Febrero_ventas','Marzo_ventas','Abril_ventas','Mayo_ventas','Junio_ventas','Julio_ventas','Agosto_ventas','Septiembre_ventas','Octubre_ventas'];
 
-        let db = null;
         let rawFacturacion = [], rawRemisiones = [], filteredData = [];
         let activeTab = 'facturacion';
-        let currentPage = 1, pageSize = 40;
+        let currentPage = 1, pageSize = 30;
         let chartContractual, chartClients, chartRemComp;
 
-        // INDEXED DB CACHÉ ENGINE
-        function initDB() {
-            return new Promise((resolve) => {
-                const req = indexedDB.open("MennarDB_2026", 1);
-                req.onupgradeneeded = (e) => {
-                    const d = e.target.result;
-                    if (!d.objectStoreNames.contains("cache")) d.createObjectStore("cache");
-                };
-                req.onsuccess = (e) => { db = e.target.result; resolve(); };
-            });
-        }
-
-        function getCache(key) {
-            return new Promise((resolve) => {
-                if (!db) return resolve(null);
-                const tx = db.transaction("cache", "readonly");
-                const store = tx.objectStore("cache");
-                const req = store.get(key);
-                req.onsuccess = () => resolve(req.result);
-                req.onerror = () => resolve(null);
-            });
-        }
-
-        function setCache(key, data) {
-            if (!db) return;
-            const tx = db.transaction("cache", "readwrite");
-            tx.objectStore("cache").put(data, key);
-        }
-
-        window.addEventListener('DOMContentLoaded', async () => {
-            await initDB();
-            loadEngine();
+        window.addEventListener('DOMContentLoaded', () => {
+            loadDataFromGitHub();
         });
 
-        async function loadEngine(force = false) {
-            document.getElementById('status-msg').textContent = "Cargando datos...";
-            
-            if (!force) {
-                const cFact = await getCache("rawFacturacion");
-                const cRem = await getCache("rawRemisiones");
-                if (cFact && cRem) {
-                    rawFacturacion = cFact;
-                    rawRemisiones = cRem;
-                    document.getElementById('status-msg').textContent = "⚡ Datos cargados desde Caché Ultra-rápida Local";
-                    document.getElementById('cnt-fact').textContent = rawFacturacion.length;
-                    document.getElementById('cnt-rem').textContent = rawRemisiones.length;
-                    setupFilters();
-                    applyFilters();
-                    return;
-                }
-            }
+        async function loadDataFromGitHub() {
+            document.getElementById('status-icon').className = "fa-solid fa-spinner fa-spin text-blue-600";
+            document.getElementById('status-msg').textContent = "Cargando carpetas de ventas y remisiones...";
 
-            document.getElementById('status-msg').textContent = "Descargando desde GitHub (solo la primera vez)...";
             try {
-                // Cargar Remisiones
+                // Remisiones
                 const rFiles = (await Promise.all(REM_FOLDERS.map(f => fetchFiles(f)))).flat();
                 rawRemisiones = (await Promise.all(rFiles.map(u => fetch(u).then(r=>r.arrayBuffer()).then(ab => parseRemisiones(ab))))).flat();
-                setCache("rawRemisiones", rawRemisiones);
                 document.getElementById('cnt-rem').textContent = rawRemisiones.length;
 
-                // Cargar Ventas
+                // Ventas
                 const vFiles = (await Promise.all(VEN_FOLDERS.map(f => fetchFiles(f)))).flat();
                 rawFacturacion = (await Promise.all(vFiles.map(u => fetch(u).then(r=>r.arrayBuffer()).then(ab => parseVentas(ab))))).flat();
-                setCache("rawFacturacion", rawFacturacion);
                 document.getElementById('cnt-fact').textContent = rawFacturacion.length;
 
-                document.getElementById('status-msg').textContent = "⚡ Carga completa guardada en Caché Local";
+                document.getElementById('status-icon').className = "fa-solid fa-circle-check text-emerald-600";
+                document.getElementById('status-msg').textContent = "Datos sincronizados correctamente con GitHub";
+
                 setupFilters();
                 applyFilters();
             } catch (e) {
-                document.getElementById('status-msg').textContent = "Error al conectar con GitHub";
+                document.getElementById('status-icon').className = "fa-solid fa-triangle-exclamation text-amber-500";
+                document.getElementById('status-msg').textContent = "Carga finalizada con advertencias";
             }
-        }
-
-        function forceReloadFromGitHub() {
-            loadEngine(true);
         }
 
         async function fetchFiles(folder) {
@@ -507,9 +451,9 @@
             Object.entries(clGrp).filter(([_,v])=>v.pen > 0).slice(0,100).forEach(([cl,v]) => {
                 tbody.innerHTML += `
                     <tr>
-                        <td class="p-2">${v.nit}</td>
+                        <td class="p-2 font-mono text-gray-500">${v.nit}</td>
                         <td class="p-2 font-bold text-mennar-blue">${cl}</td>
-                        <td class="p-2">${v.tipo}</td>
+                        <td class="p-2 font-medium">${v.tipo}</td>
                         <td class="p-2 text-right">${v.ped.toLocaleString()}</td>
                         <td class="p-2 text-right text-emerald-700 font-semibold">${v.rem.toLocaleString()}</td>
                         <td class="p-2 text-right text-red-600 font-bold">${v.pen.toLocaleString()}</td>
@@ -532,14 +476,14 @@
             pageRecords.forEach(r => {
                 const units = r.Unidades !== undefined ? r.Unidades : r.Remisionadas;
                 tbody.innerHTML += `
-                    <tr>
+                    <tr class="hover:bg-gray-50">
                         <td class="p-2 font-semibold text-amber-700">${r.Contractual}</td>
                         <td class="p-2 font-bold text-gray-700">${r.Documento}</td>
                         <td class="p-2">${r.Fecha}</td>
-                        <td class="p-2 text-gray-500">${r.CCTercero}</td>
+                        <td class="p-2 text-gray-500 font-mono">${r.CCTercero}</td>
                         <td class="p-2 font-medium">${r.Client}</td>
                         <td class="p-2">${r.Bodega}</td>
-                        <td class="p-2">${r.Articulo}</td>
+                        <td class="p-2 text-gray-800">${r.Articulo}</td>
                         <td class="p-2 text-right font-bold">${units.toLocaleString()}</td>
                         <td class="p-2 text-right font-bold text-emerald-700">${fmtCOP(r.Total)}</td>
                     </tr>
