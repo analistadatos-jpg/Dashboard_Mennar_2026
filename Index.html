@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MENNAR S.A.S - Panel de Analítica 2026 (Carga Automática GitHub)</title>
+    <title>MENNAR S.A.S - Panel de Analítica 2026</title>
     
     <!-- CDNs Externos -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -96,8 +96,8 @@
                 <div class="flex items-center gap-2">
                     <i id="icon-fact" class="fa-solid fa-spinner fa-spin text-blue-500 text-base"></i>
                     <div>
-                        <p class="font-bold text-gray-800">Facturación / Ventas (GitHub)</p>
-                        <p id="label-fact-file" class="text-[11px] text-gray-500">Cargando data/Facturacion_2026.xlsx...</p>
+                        <p class="font-bold text-gray-800">Facturación / Ventas (Carpetas *_ventas)</p>
+                        <p id="label-fact-file" class="text-[11px] text-gray-500">Cargando carpetas de ventas...</p>
                     </div>
                 </div>
                 <span id="badge-fact-count" class="bg-blue-100 text-mennar-blue px-2.5 py-1 rounded font-bold">0 reg</span>
@@ -107,8 +107,8 @@
                 <div class="flex items-center gap-2">
                     <i id="icon-rem" class="fa-solid fa-spinner fa-spin text-amber-500 text-base"></i>
                     <div>
-                        <p class="font-bold text-gray-800">Remisiones / Pedidos (GitHub)</p>
-                        <p id="label-rem-file" class="text-[11px] text-gray-500">Cargando data/Remisiones_2026.xls...</p>
+                        <p class="font-bold text-gray-800">Remisiones / Pedidos (Carpetas Mensuales)</p>
+                        <p id="label-rem-file" class="text-[11px] text-gray-500">Cargando carpetas de remisiones...</p>
                     </div>
                 </div>
                 <span id="badge-rem-count" class="bg-amber-100 text-amber-800 px-2.5 py-1 rounded font-bold">0 reg</span>
@@ -375,9 +375,10 @@
         let map = null;
         let mapMarkers = [];
 
-        // Rutas relativas de los archivos almacenados en la carpeta /data del repositorio de GitHub
-        const GITHUB_FACTURACION_URL = './data/Facturacion_2026.xlsx';
-        const GITHUB_REMISIONES_URL = './data/Remisiones_2026.xls';
+        // Repositorio y meses para consulta directa en GitHub API
+        const GITHUB_REPO = 'analistadatos-jpg/Dashboard_Mennar_2026';
+        const MONTH_FOLDERS_REM = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre'];
+        const MONTH_FOLDERS_VENTAS = ['Enero_ventas', 'Febrero_ventas', 'Marzo_ventas', 'Abril_ventas', 'Mayo_ventas', 'Junio_ventas', 'Julio_ventas', 'Agosto_ventas', 'Septiembre_ventas', 'Octubre_ventas'];
 
         const locationCoords = {
             'BODEGA PRINCIPAL CEDI': { lat: 2.4820, lng: -76.5620 },
@@ -396,46 +397,58 @@
             loadDataFromGitHub();
         });
 
-        // --- CARGA AUTOMÁTICA DESDE GITHUB ---
+        // --- CARGA DINÁMICA DE CARPETAS DESDE GITHUB ---
         async function loadDataFromGitHub() {
-            // Actualizar indicadores visuales
             document.getElementById('icon-fact').className = "fa-solid fa-spinner fa-spin text-blue-500 text-base";
             document.getElementById('icon-rem').className = "fa-solid fa-spinner fa-spin text-amber-500 text-base";
-            document.getElementById('label-fact-file').textContent = "Descargando desde GitHub...";
-            document.getElementById('label-rem-file').textContent = "Descargando desde GitHub...";
+            document.getElementById('label-fact-file').textContent = "Buscando archivos de ventas...";
+            document.getElementById('label-rem-file').textContent = "Buscando archivos de remisiones...";
 
             try {
-                // Peticiones simultáneas a GitHub
-                const [factBuffer, remBuffer] = await Promise.all([
-                    fetch(GITHUB_FACTURACION_URL).then(res => {
-                        if (!res.ok) throw new Error("No se encontró el archivo de Facturación");
-                        return res.arrayBuffer();
-                    }),
-                    fetch(GITHUB_REMISIONES_URL).then(res => {
-                        if (!res.ok) throw new Error("No se encontró el archivo de Remisiones");
-                        return res.arrayBuffer();
-                    })
-                ]);
+                // 1. Cargar Remisiones
+                const remTasks = MONTH_FOLDERS_REM.map(folder => fetchFolderFiles(folder));
+                const remFileUrls = (await Promise.all(remTasks)).flat();
+                
+                const remDataPromises = remFileUrls.map(url => fetch(url).then(r => r.arrayBuffer()).then(ab => processRemisionesArrayBuffer(ab)));
+                const remResults = await Promise.all(remDataPromises);
+                rawRemisiones = remResults.flat();
 
-                // Procesar Facturación
-                rawFacturacion = processFacturacionArrayBuffer(factBuffer);
-                document.getElementById('icon-fact').className = "fa-solid fa-circle-check text-mennar-green text-base";
-                document.getElementById('label-fact-file').textContent = "Cargado automáticamente (Facturacion_2026.xlsx)";
-                document.getElementById('badge-fact-count').textContent = `${rawFacturacion.length} reg`;
-
-                // Procesar Remisiones
-                rawRemisiones = processRemisionesArrayBuffer(remBuffer);
                 document.getElementById('icon-rem').className = "fa-solid fa-circle-check text-amber-600 text-base";
-                document.getElementById('label-rem-file').textContent = "Cargado automáticamente (Remisiones_2026.xls)";
+                document.getElementById('label-rem-file').textContent = `${rawRemisiones.length} registros cargados de remisiones`;
                 document.getElementById('badge-rem-count').textContent = `${rawRemisiones.length} reg`;
+
+                // 2. Cargar Ventas
+                const ventasTasks = MONTH_FOLDERS_VENTAS.map(folder => fetchFolderFiles(folder));
+                const ventasFileUrls = (await Promise.all(ventasTasks)).flat();
+                
+                const ventasDataPromises = ventasFileUrls.map(url => fetch(url).then(r => r.arrayBuffer()).then(ab => processFacturacionArrayBuffer(ab)));
+                const ventasResults = await Promise.all(ventasDataPromises);
+                rawFacturacion = ventasResults.flat();
+
+                document.getElementById('icon-fact').className = "fa-solid fa-circle-check text-mennar-green text-base";
+                document.getElementById('label-fact-file').textContent = `${rawFacturacion.length} registros cargados de ventas`;
+                document.getElementById('badge-fact-count').textContent = `${rawFacturacion.length} reg`;
 
                 populateFilterDropdowns();
                 updateUI();
 
             } catch (err) {
-                console.error("Error cargando archivos desde GitHub:", err);
-                document.getElementById('label-fact-file').textContent = "Error al conectar con GitHub";
-                document.getElementById('label-rem-file').textContent = "Verifica la carpeta /data/";
+                console.error("Error al cargar archivos:", err);
+                document.getElementById('label-fact-file').textContent = "Carga parcial finalizada";
+                document.getElementById('label-rem-file').textContent = "Carga parcial finalizada";
+            }
+        }
+
+        async function fetchFolderFiles(folderPath) {
+            try {
+                const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${folderPath}`);
+                if (!res.ok) return [];
+                const files = await res.json();
+                return files
+                    .filter(f => f.type === 'file' && f.name.match(/\.(xlsx|xls)$/i) && !f.name.startsWith('~$'))
+                    .map(f => f.download_url);
+            } catch (e) {
+                return [];
             }
         }
 
@@ -472,26 +485,12 @@
             }).addTo(map);
         }
 
-        // --- REGLA EXCLUSIVA PARA TIPO CONTRATO ---
         function detectTipoContrato(nitStr) {
             const nit = String(nitStr || '').trim();
-            const contractualNits = [
-                '891501676',
-                '900145579',
-                '900146006',
-                '900146438',
-                '900145572',
-                '900146010'
-            ];
-            
-            if (contractualNits.includes(nit)) {
-                return 'Contractual';
-            }
-
-            return 'GENERAL';
+            const contractualNits = ['891501676', '900145579', '900146006', '900146438', '900145572', '900146010'];
+            return contractualNits.includes(nit) ? 'Contractual' : 'GENERAL';
         }
 
-        // --- EXTRAER MES DESDE EL EXCEL ---
         function extractMonth(dateVal) {
             if (!dateVal) return '01';
 
@@ -503,7 +502,6 @@
             }
 
             const str = String(dateVal).trim();
-
             if (str.includes('/')) {
                 const parts = str.split('/');
                 if (parts.length >= 2) return parts[1].padStart(2, '0');
@@ -519,10 +517,8 @@
             return '01';
         }
 
-        // --- FORMATEADOR DE FECHAS DE EXCEL ---
         function formatExcelDate(val) {
             if (!val) return '';
-            
             if (!isNaN(val) && parseFloat(val) > 30000) {
                 const dateObj = XLSX.SSF.parse_date_code(parseFloat(val));
                 if (dateObj) {
@@ -534,11 +530,9 @@
                     return `${day}/${month}/${year} ${hour}:${min}`;
                 }
             }
-            
             return String(val).trim();
         }
 
-        // --- PARSER PROCESO FACTURACIÓN ---
         function processFacturacionArrayBuffer(arrayBuffer) {
             const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array', cellStyles: false, cellFormulas: false, cellDates: false });
             const sheetArray = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
@@ -577,7 +571,6 @@
             }).filter(d => d.Documento !== 'S/D');
         }
 
-        // --- PARSER PROCESO REMISIONES ---
         function processRemisionesArrayBuffer(arrayBuffer) {
             const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array', cellStyles: false, cellFormulas: false, cellDates: false });
             const sheetArray = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
@@ -644,7 +637,6 @@
                     UnidadesFacturadas: facturadas,
                     CantidadPedida: pedidas,
                     PendientesPedidas: pendientes,
-                    
                     Client: String(nombreCliente).trim(),
                     Bodega: String(bodega).trim(),
                     Articulo: String(descripcion).trim(),
@@ -850,7 +842,6 @@
             renderTable(data);
         }
 
-        // --- DESCARGA DE EXCEL DE PENDIENTES ---
         function downloadPendientesExcel() {
             const filteredRemisiones = getFilteredData(rawRemisiones);
             const pendientesData = filteredRemisiones.filter(d => d.PendientesPedidas > 0);
