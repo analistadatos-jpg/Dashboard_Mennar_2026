@@ -260,7 +260,7 @@
             document.getElementById('status-msg').textContent = "Procesando ventas y remisiones en segundo plano...";
 
             try {
-                // 1. Cargar Remisiones
+                // 1. Remisiones
                 const rFiles = (await Promise.all(REM_FOLDERS.map(f => fetchFiles(f)))).flat();
                 rawRemisiones = [];
                 for (let u of rFiles) {
@@ -272,7 +272,7 @@
                     } catch(e){}
                 }
 
-                // 2. Cargar Ventas en Lotes
+                // 2. Ventas
                 const vFiles = (await Promise.all(VEN_FOLDERS.map(f => fetchFiles(f)))).flat();
                 rawFacturacion = [];
                 for (let u of vFiles) {
@@ -281,17 +281,23 @@
                         const parsed = parseVentas(ab);
                         rawFacturacion.push(...parsed);
                         document.getElementById('cnt-fact').textContent = rawFacturacion.length;
+                        
+                        // Renderizado progresivo mientras termina la carga
+                        setupFilters();
+                        applyFilters();
                     } catch(e){}
                 }
 
                 document.getElementById('status-icon').className = "fa-solid fa-circle-check text-emerald-600";
-                document.getElementById('status-msg').textContent = "Carga ultra-rápida completada con éxito";
+                document.getElementById('status-msg').textContent = "Carga completada con éxito";
 
                 setupFilters();
                 applyFilters();
             } catch (e) {
                 document.getElementById('status-icon').className = "fa-solid fa-triangle-exclamation text-amber-500";
-                document.getElementById('status-msg').textContent = "Carga parcial lista";
+                document.getElementById('status-msg').textContent = "Carga finalizada";
+                setupFilters();
+                applyFilters();
             }
         }
 
