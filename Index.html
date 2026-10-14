@@ -107,7 +107,7 @@
                 <div class="flex items-center gap-2">
                     <i id="icon-rem" class="fa-solid fa-spinner fa-spin text-amber-500 text-base"></i>
                     <div>
-                        <p class="font-bold text-gray-800">Remisiones / Pedidos (Carpetas Mensuales)</p>
+                        <p class="font-bold text-gray-800">Remisiones / Pedidos (Carpetas *_Remisiones)</p>
                         <p id="label-rem-file" class="text-[11px] text-gray-500">Cargando carpetas de remisiones...</p>
                     </div>
                 </div>
@@ -375,9 +375,9 @@
         let map = null;
         let mapMarkers = [];
 
-        // Repositorio y meses para consulta directa en GitHub API
+        // Repositorio y carpetas exactas cargadas en tu GitHub
         const GITHUB_REPO = 'analistadatos-jpg/Dashboard_Mennar_2026';
-        const MONTH_FOLDERS_REM = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre'];
+        const MONTH_FOLDERS_REM = ['Enero_Remisiones', 'Febrero_Remisiones', 'Marzo_Remisiones', 'Abril_Remisiones', 'Mayo_Remisiones', 'Junio_Remisiones', 'Julio_Remisiones', 'Agosto_Remisiones', 'Septiembre_Remisiones', 'Octubre_Remisiones'];
         const MONTH_FOLDERS_VENTAS = ['Enero_ventas', 'Febrero_ventas', 'Marzo_ventas', 'Abril_ventas', 'Mayo_ventas', 'Junio_ventas', 'Julio_ventas', 'Agosto_ventas', 'Septiembre_ventas', 'Octubre_ventas'];
 
         const locationCoords = {
@@ -397,7 +397,7 @@
             loadDataFromGitHub();
         });
 
-        // --- CARGA DINÁMICA DE CARPETAS DESDE GITHUB ---
+        // Carga dinámica desde la API pública de GitHub
         async function loadDataFromGitHub() {
             document.getElementById('icon-fact').className = "fa-solid fa-spinner fa-spin text-blue-500 text-base";
             document.getElementById('icon-rem').className = "fa-solid fa-spinner fa-spin text-amber-500 text-base";
