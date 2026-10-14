@@ -69,7 +69,7 @@
         <div class="bg-white p-2.5 rounded-lg border card-shadow flex justify-between items-center text-xs">
             <div class="flex items-center gap-2">
                 <i id="status-icon" class="fa-solid fa-spinner fa-spin text-blue-600"></i>
-                <span id="status-msg" class="font-medium text-gray-700">Iniciando lectura de archivos...</span>
+                <span id="status-msg" class="font-medium text-gray-700">Iniciando descarga directa de carpetas...</span>
             </div>
             <div class="flex gap-4 font-bold">
                 <span class="text-blue-700">Ventas: <span id="cnt-fact">0</span> reg</span>
@@ -242,7 +242,6 @@
     </main>
 
     <script>
-        const REPO = 'analistadatos-jpg/Dashboard_Mennar_2026';
         const REM_FOLDERS = ['Enero_Remisiones','Febrero_Remisiones','Marzo_Remisiones','Abril_Remisiones','Mayo_Remisiones','Junio_Remisiones','Julio_Remisiones','Agosto_Remisiones','Septiembre_Remisiones','Octubre_Remisiones'];
         const VEN_FOLDERS = ['Enero_ventas','Febrero_ventas','Marzo_ventas','Abril_ventas','Mayo_ventas','Junio_ventas','Julio_ventas','Agosto_ventas','Septiembre_ventas','Octubre_ventas'];
 
@@ -259,65 +258,72 @@
 
         async function loadDataFromGitHub() {
             document.getElementById('status-icon').className = "fa-solid fa-spinner fa-spin text-blue-600";
-            document.getElementById('status-msg').textContent = "Procesando archivos por lotes...";
+            document.getElementById('status-msg').textContent = "Descargando directamente archivos de carpetas...";
 
-            try {
-                // 1. Cargar Remisiones secuencialmente
-                const rFiles = (await Promise.all(REM_FOLDERS.map(f => fetchFiles(f)))).flat();
-                rawRemisiones = [];
-                for (let u of rFiles) {
+            rawRemisiones = [];
+            rawFacturacion = [];
+
+            // 1. Cargar Remisiones buscando rutas directas sin pasar por la API rate-limit
+            for (let folder of REM_FOLDERS) {
+                const urls = await getFilesDirect(folder);
+                for (let u of urls) {
                     try {
-                        const ab = await fetch(u).then(r => r.arrayBuffer());
-                        const parsed = parseRemisiones(ab);
-                        rawRemisiones.push(...parsed);
-                        document.getElementById('cnt-rem').textContent = rawRemisiones.length;
-                        await delay(10); // Permite al navegador respirar
+                        const ab = await fetch(u).then(r => r.ok ? r.arrayBuffer() : null);
+                        if (ab) {
+                            const parsed = parseRemisiones(ab);
+                            rawRemisiones.push(...parsed);
+                            document.getElementById('cnt-rem').textContent = rawRemisiones.length;
+                            await delay(5);
+                        }
                     } catch(e){}
                 }
-
-                // 2. Cargar Ventas secuencialmente actualizando la vista
-                const vFiles = (await Promise.all(VEN_FOLDERS.map(f => fetchFiles(f)))).flat();
-                rawFacturacion = [];
-                for (let u of vFiles) {
-                    try {
-                        const ab = await fetch(u).then(r => r.arrayBuffer());
-                        const parsed = parseVentas(ab);
-                        rawFacturacion.push(...parsed);
-                        document.getElementById('cnt-fact').textContent = rawFacturacion.length;
-                        
-                        // Renderiza dinámicamente mientras carga
-                        setupFilters();
-                        applyFilters();
-                        await delay(15); // Previene congelamiento de pantalla
-                    } catch(e){}
-                }
-
-                document.getElementById('status-icon').className = "fa-solid fa-circle-check text-emerald-600";
-                document.getElementById('status-msg').textContent = "Procesamiento completado con éxito";
-
-                setupFilters();
-                applyFilters();
-            } catch (e) {
-                document.getElementById('status-icon').className = "fa-solid fa-triangle-exclamation text-amber-500";
-                document.getElementById('status-msg').textContent = "Carga finalizada con advertencias";
-                setupFilters();
-                applyFilters();
             }
+
+            // 2. Cargar Ventas buscando rutas directas
+            for (let folder of VEN_FOLDERS) {
+                const urls = await getFilesDirect(folder);
+                for (let u of urls) {
+                    try {
+                        const ab = await fetch(u).then(r => r.ok ? r.arrayBuffer() : null);
+                        if (ab) {
+                            const parsed = parseVentas(ab);
+                            rawFacturacion.push(...parsed);
+                            document.getElementById('cnt-fact').textContent = rawFacturacion.length;
+                            
+                            setupFilters();
+                            applyFilters();
+                            await delay(10);
+                        }
+                    } catch(e){}
+                }
+            }
+
+            document.getElementById('status-icon').className = "fa-solid fa-circle-check text-emerald-600";
+            document.getElementById('status-msg').textContent = "Carga de datos lista";
+
+            setupFilters();
+            applyFilters();
         }
 
-        async function fetchFiles(folder) {
+        async function getFilesDirect(folder) {
+            // Intenta descargar el índice local o lista archivos probables en la subcarpeta
             try {
-                const r = await fetch(`https://api.github.com/repos/${REPO}/contents/${folder}`);
+                const r = await fetch(`./${folder}/`);
                 if (!r.ok) return [];
-                const data = await r.json();
-                return data.filter(f => f.type === 'file' && f.name.match(/\.(xlsx|xls)$/i) && !f.name.startsWith('~$')).map(f => f.download_url);
-            } catch(e) { return []; }
+                const html = await r.text();
+                const matches = html.match(/href="([^"]+\.(xlsx|xls))"/gi) || [];
+                return matches.map(m => {
+                    const fname = m.replace(/href="|"/gi, '');
+                    return fname.startsWith('http') ? fname : `./${folder}/${fname.split('/').pop()}`;
+                });
+            } catch(e) {
+                return [];
+            }
         }
 
         function parseVentas(ab) {
             const wb = XLSX.read(new Uint8Array(ab), { type: 'array', cellDates: false, cellStyles: false, cellFormulas: false });
-            const sheetName = wb.SheetNames[0];
-            const sheet = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: "" });
+            const sheet = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" });
             
             let hIdx = sheet.findIndex(r => {
                 const line = r.join(" ").toLowerCase();
@@ -357,8 +363,7 @@
 
         function parseRemisiones(ab) {
             const wb = XLSX.read(new Uint8Array(ab), { type: 'array', cellDates: false, cellStyles: false, cellFormulas: false });
-            const sheetName = wb.SheetNames[0];
-            const sheet = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: "" });
+            const sheet = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" });
             
             let hIdx = sheet.findIndex(r => r.join(" ").toLowerCase().includes("documento"));
             if (hIdx === -1) hIdx = 0;
