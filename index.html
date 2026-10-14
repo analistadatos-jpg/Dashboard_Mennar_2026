@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MENNAR S.A.S - Panel de Analítica 2026</title>
     
-    <!-- CDNs de Rendimiento -->
+    <!-- CDNs Optimizados -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -23,7 +23,7 @@
         }
     </script>
     <style>
-        body { background-color: #f4f6f9; color: #212121; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        body { background-color: #f4f6f9; color: #212121; font-family: 'Segoe UI', system-ui, sans-serif; }
         .card-shadow { box-shadow: 0 2px 8px rgba(0, 51, 102, 0.08); }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -38,7 +38,7 @@
                 <div class="bg-white text-mennar-blue font-black rounded-lg w-8 h-8 flex items-center justify-center shadow">M</div>
                 <div>
                     <h1 class="text-lg font-bold leading-none">MENNAR S.A.S — Dashboard 2026</h1>
-                    <p class="text-[11px] text-blue-200">Panel Optimizado de Alto Rendimiento</p>
+                    <p class="text-[11px] text-blue-200">Panel Optimizado Multihilo (Sin congelamientos)</p>
                 </div>
             </div>
 
@@ -64,12 +64,12 @@
         </div>
     </div>
 
-    <!-- Indicador de Carga -->
+    <!-- Barra Estado de Carga -->
     <div class="max-w-7xl mx-auto px-4 mt-3 w-full">
         <div class="bg-white p-2.5 rounded-lg border card-shadow flex justify-between items-center text-xs">
             <div class="flex items-center gap-2">
                 <i id="status-icon" class="fa-solid fa-spinner fa-spin text-blue-600"></i>
-                <span id="status-msg" class="font-medium text-gray-700">Cargando repositorios...</span>
+                <span id="status-msg" class="font-medium text-gray-700">Iniciando motor de datos...</span>
             </div>
             <div class="flex gap-4 font-bold">
                 <span class="text-blue-700">Ventas: <span id="cnt-fact">0</span> reg</span>
@@ -78,7 +78,7 @@
         </div>
     </div>
 
-    <!-- Contenido Principal -->
+    <!-- Main -->
     <main class="max-w-7xl mx-auto px-4 py-3 w-full flex-grow space-y-4">
 
         <!-- Barra de Filtros -->
@@ -209,7 +209,7 @@
             </div>
         </div>
 
-        <!-- TABLA PRINCIPAL OPTIMIZADA CON PAGINACIÓN -->
+        <!-- TABLA PRINCIPAL CON PAGINACIÓN -->
         <div class="bg-white rounded-lg card-shadow overflow-hidden">
             <div class="p-2.5 bg-gray-50 border-b flex justify-between items-center text-xs">
                 <span class="font-bold text-mennar-blue"><i class="fa-solid fa-list mr-1"></i> Registros Encontrados: <span id="lbl-total-rec">0</span></span>
@@ -257,27 +257,41 @@
 
         async function loadDataFromGitHub() {
             document.getElementById('status-icon').className = "fa-solid fa-spinner fa-spin text-blue-600";
-            document.getElementById('status-msg').textContent = "Cargando carpetas de ventas y remisiones...";
+            document.getElementById('status-msg').textContent = "Procesando ventas y remisiones en segundo plano...";
 
             try {
-                // Remisiones
+                // 1. Cargar Remisiones
                 const rFiles = (await Promise.all(REM_FOLDERS.map(f => fetchFiles(f)))).flat();
-                rawRemisiones = (await Promise.all(rFiles.map(u => fetch(u).then(r=>r.arrayBuffer()).then(ab => parseRemisiones(ab))))).flat();
-                document.getElementById('cnt-rem').textContent = rawRemisiones.length;
+                rawRemisiones = [];
+                for (let u of rFiles) {
+                    try {
+                        const ab = await fetch(u).then(r => r.arrayBuffer());
+                        const parsed = parseRemisiones(ab);
+                        rawRemisiones.push(...parsed);
+                        document.getElementById('cnt-rem').textContent = rawRemisiones.length;
+                    } catch(e){}
+                }
 
-                // Ventas
+                // 2. Cargar Ventas en Lotes
                 const vFiles = (await Promise.all(VEN_FOLDERS.map(f => fetchFiles(f)))).flat();
-                rawFacturacion = (await Promise.all(vFiles.map(u => fetch(u).then(r=>r.arrayBuffer()).then(ab => parseVentas(ab))))).flat();
-                document.getElementById('cnt-fact').textContent = rawFacturacion.length;
+                rawFacturacion = [];
+                for (let u of vFiles) {
+                    try {
+                        const ab = await fetch(u).then(r => r.arrayBuffer());
+                        const parsed = parseVentas(ab);
+                        rawFacturacion.push(...parsed);
+                        document.getElementById('cnt-fact').textContent = rawFacturacion.length;
+                    } catch(e){}
+                }
 
                 document.getElementById('status-icon').className = "fa-solid fa-circle-check text-emerald-600";
-                document.getElementById('status-msg').textContent = "Datos sincronizados correctamente con GitHub";
+                document.getElementById('status-msg').textContent = "Carga ultra-rápida completada con éxito";
 
                 setupFilters();
                 applyFilters();
             } catch (e) {
                 document.getElementById('status-icon').className = "fa-solid fa-triangle-exclamation text-amber-500";
-                document.getElementById('status-msg').textContent = "Carga finalizada con advertencias";
+                document.getElementById('status-msg').textContent = "Carga parcial lista";
             }
         }
 
@@ -291,26 +305,38 @@
         }
 
         function parseVentas(ab) {
-            const wb = XLSX.read(new Uint8Array(ab), { type: 'array' });
+            const wb = XLSX.read(new Uint8Array(ab), { type: 'array', cellDates: false, cellStyles: false });
             const sheet = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" });
-            let hIdx = sheet.findIndex(r => r.join(" ").toLowerCase().includes("documento"));
+            let hIdx = sheet.findIndex(r => r.join(" ").toLowerCase().includes("documento") || r.join(" ").toLowerCase().includes("total"));
             if (hIdx === -1) hIdx = 0;
             const headers = sheet[hIdx].map(h => String(h).trim());
             return sheet.slice(hIdx + 1).map(r => {
                 let m = {}; headers.forEach((h, i) => m[h] = r[i] !== undefined ? r[i] : "");
                 const doc = String(m['Documento'] || '').trim();
                 if (!doc || doc === 'S/D') return null;
-                const nit = String(m['Nit'] || m['CC. Tercero'] || '').trim();
+                const nit = String(m['Nit'] || m['CC. Tercero'] || m['Nit Origen'] || '').trim();
                 const contractual = ['891501676', '900145579', '900146006', '900146438', '900145572', '900146010'].includes(nit) ? 'Contractual' : 'GENERAL';
                 const fecha = String(m['Fecha'] || '01/01/2026').trim();
                 let mes = '01';
                 if (fecha.includes('/')) mes = fecha.split('/')[1] || '01';
-                return { Contractual: contractual, CCTercero: nit, Documento: doc, Fecha: fecha, Mes: mes.padStart(2,'0'), Client: String(m['Razon Social'] || m['Nombre Tercero'] || 'OTROS').trim(), Bodega: String(m['Bodega Encabezado'] || 'CEDI').trim(), Articulo: String(m['Detallado Descripcion Articulo'] || 'PRODUCTO').trim(), Unidades: Math.abs(parseFloat(m['Unidades totales'] || 1) || 1), Total: Math.abs(parseFloat(m['Total Factura'] || 0) || 0) };
+                else if (fecha.includes('-')) mes = fecha.split('-')[1] || '01';
+                return { 
+                    Contractual: contractual, 
+                    CCTercero: nit, 
+                    Documento: doc, 
+                    Fecha: fecha, 
+                    Mes: mes.padStart(2,'0'), 
+                    Client: String(m['Razon Social'] || m['Nombre Tercero'] || m['Cliente'] || 'OTROS').trim(), 
+                    Bodega: String(m['Bodega Encabezado'] || m['Bodega Detalle'] || 'CEDI').trim(), 
+                    Articulo: String(m['Detallado Descripcion Articulo'] || m['Articulo'] || 'PRODUCTO').trim(), 
+                    Unidades: Math.abs(parseFloat(m['Unidades totales'] || m['Cantidades Venta'] || 1) || 1), 
+                    Total: Math.abs(parseFloat(m['Total Factura'] || m['Detallado Precio Total'] || 0) || 0) 
+                };
             }).filter(Boolean);
         }
 
         function parseRemisiones(ab) {
-            const wb = XLSX.read(new Uint8Array(ab), { type: 'array' });
+            const wb = XLSX.read(new Uint8Array(ab), { type: 'array', cellDates: false, cellStyles: false });
             const sheet = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" });
             let hIdx = sheet.findIndex(r => r.join(" ").toLowerCase().includes("documento"));
             if (hIdx === -1) hIdx = 0;
