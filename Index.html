@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MENNAR S.A.S - Panel de Analítica 2026 (Carga Automática GitHub)</title>
+    
+    <!-- CDNs Externos -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        mennar: {
+                            blue: '#003366',
+                            lightBlue: '#1e88e5',
+                            accentBlue: '#0d47a1',
+                            green: '#2e7d32',
+                            lightGreen: '#4caf50',
+                            bg: '#f4f6f9',
+                            card: '#ffffff',
+                            text: '#212121'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #f4f6f9; color: #212121; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        .card-shadow { box-shadow: 0 4px 12px rgba(0, 51, 102, 0.06); }
+        .hover-card:hover { transform: translateY(-2px); transition: all 0.2s ease; }
+        #map { height: 320px; width: 100%; border-radius: 0.5rem; z-index: 1; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #003366; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header Corporativo -->
+    <header class="bg-mennar-blue text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-white p-2 rounded-lg text-mennar-blue font-bold text-xl flex items-center justify-center shadow-inner w-10 h-10">
+                    <i class="fa-solid">M</i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wide leading-tight">MENNAR S.A.S - 2026</h1>
+                    <p class="text-xs text-blue-200">Facturación, Remisiones, Tipo Contrato (Contractual / GENERAL) y Pendientes</p>
+                </div>
+            </div>
+
+            <!-- Botón para Recargar Datos -->
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="loadDataFromGitHub()" class="bg-mennar-green hover:bg-emerald-700 text-white font-medium text-xs px-3.5 py-2 rounded-lg shadow flex items-center gap-2 transition cursor-pointer">
+                    <i class="fa-solid fa-rotate mr-1"></i>
+                    <span>Actualizar Datos desde GitHub</span>
+                </button>
+
+                <button id="reset-filters-btn" onclick="resetAllFilters()" class="bg-blue-800 hover:bg-blue-900 text-blue-100 text-xs px-3 py-2 rounded-lg border border-blue-600 flex items-center gap-1 transition hidden">
+                    <i class="fa-solid fa-filter-circle-xmark"></i>
+                    <span>Limpiar Filtros</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Bar de Pestañas Principales -->
+    <div class="bg-white border-b sticky top-[60px] z-40 card-shadow">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-6 text-sm font-semibold text-gray-600">
+            <button id="tab-btn-facturacion" onclick="switchTab('facturacion')" class="py-3 border-b-2 border-mennar-blue text-mennar-blue flex items-center gap-2 focus:outline-none">
+                <i class="fa-solid fa-chart-pie"></i> Facturación & Ventas 2026
+            </button>
+            <button id="tab-btn-remisiones" onclick="switchTab('remisiones')" class="py-3 border-b-2 border-transparent hover:text-mennar-blue flex items-center gap-2 focus:outline-none">
+                <i class="fa-solid fa-boxes-packing"></i> Reporte de Remisiones
+            </button>
+            <button id="tab-btn-pendientes" onclick="switchTab('pendientes')" class="py-3 border-b-2 border-transparent hover:text-mennar-blue flex items-center gap-2 focus:outline-none">
+                <i class="fa-solid fa-clock-rotate-left text-red-600"></i> Lo que le Debemos al Cliente (Pendientes 2026)
+            </button>
+        </div>
+    </div>
+
+    <!-- Indicador de Carga Automática -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 w-full">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div id="status-facturacion" class="p-3 rounded-xl border bg-white card-shadow flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i id="icon-fact" class="fa-solid fa-spinner fa-spin text-blue-500 text-base"></i>
+                    <div>
+                        <p class="font-bold text-gray-800">Facturación / Ventas (GitHub)</p>
+                        <p id="label-fact-file" class="text-[11px] text-gray-500">Cargando data/Facturacion_2026.xlsx...</p>
+                    </div>
+                </div>
+                <span id="badge-fact-count" class="bg-blue-100 text-mennar-blue px-2.5 py-1 rounded font-bold">0 reg</span>
+            </div>
+
+            <div id="status-remisiones" class="p-3 rounded-xl border bg-white card-shadow flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i id="icon-rem" class="fa-solid fa-spinner fa-spin text-amber-500 text-base"></i>
+                    <div>
+                        <p class="font-bold text-gray-800">Remisiones / Pedidos (GitHub)</p>
+                        <p id="label-rem-file" class="text-[11px] text-gray-500">Cargando data/Remisiones_2026.xls...</p>
+                    </div>
+                </div>
+                <span id="badge-rem-count" class="bg-amber-100 text-amber-800 px-2.5 py-1 rounded font-bold">0 reg</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenido Principal -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 w-full flex-grow space-y-5">
+
+        <!-- Barra de Filtros Manuales -->
+        <div class="bg-white p-3 rounded-xl card-shadow grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+            <div>
+                <label class="block font-semibold text-gray-600 mb-1"><i class="fa-solid fa-file-contract text-mennar-blue mr-1"></i>Tipo Contrato</label>
+                <select id="filter-contractual" onchange="applyManualFilter('contractual', this.value)" class="w-full p-2 border rounded-md bg-gray-50">
+                    <option value="">Todos los Tipos de Contrato</option>
+                </select>
+            </div>
+            <div>
+                <label class="block font-semibold text-gray-600 mb-1"><i class="fa-solid fa-calendar-days text-mennar-blue mr-1"></i>Mes (Año 2026)</label>
+                <select id="filter-mes" onchange="applyManualFilter('mes', this.value)" class="w-full p-2 border rounded-md bg-gray-50">
+                    <option value="">Todo el Año 2026</option>
+                    <option value="01">Enero 2026</option>
+                    <option value="02">Febrero 2026</option>
+                    <option value="03">Marzo 2026</option>
+                    <option value="04">Abril 2026</option>
+                    <option value="05">Mayo 2026</option>
+                    <option value="06">Junio 2026</option>
+                    <option value="07">Julio 2026</option>
+                    <option value="08">Agosto 2026</option>
+                    <option value="09">Septiembre 2026</option>
+                    <option value="10">Octubre 2026</option>
+                    <option value="11">Noviembre 2026</option>
+                    <option value="12">Diciembre 2026</option>
+                </select>
+            </div>
+            <div>
+                <label class="block font-semibold text-gray-600 mb-1"><i class="fa-solid fa-hospital text-mennar-blue mr-1"></i>Cliente / EPS / E.S.E</label>
+                <select id="filter-client" onchange="applyManualFilter('client', this.value)" class="w-full p-2 border rounded-md bg-gray-50">
+                    <option value="">Todos los Clientes</option>
+                </select>
+            </div>
+            <div>
+                <label class="block font-semibold text-gray-600 mb-1"><i class="fa-solid fa-warehouse text-mennar-blue mr-1"></i>Bodega / Punto</label>
+                <select id="filter-bodega" onchange="applyManualFilter('bodega', this.value)" class="w-full p-2 border rounded-md bg-gray-50">
+                    <option value="">Todas las Bodegas</option>
+                </select>
+            </div>
+            <div>
+                <label class="block font-semibold text-gray-600 mb-1"><i class="fa-solid fa-magnifying-glass text-mennar-blue mr-1"></i>Búsqueda General</label>
+                <input type="text" id="filter-search" oninput="applyManualFilter('search', this.value)" placeholder="Buscar doc, cliente, nit..." class="w-full p-2 border rounded-md bg-gray-50">
+            </div>
+        </div>
+
+        <!-- PESTAÑA 1: FACTURACIÓN Y VENTAS -->
+        <div id="view-facturacion" class="space-y-5">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-mennar-blue hover-card">
+                    <p class="text-xs font-semibold text-gray-500 uppercase">Venta Total 2026</p>
+                    <h3 id="kpi-total-val" class="text-lg font-bold text-mennar-blue mt-1">$0</h3>
+                    <span class="text-[10px] text-gray-400">Total Facturado COP</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-mennar-green hover-card">
+                    <p class="text-xs font-semibold text-gray-500 uppercase">Facturas</p>
+                    <h3 id="kpi-total-docs" class="text-lg font-bold text-mennar-green mt-1">0</h3>
+                    <span class="text-[10px] text-gray-400">Documentos FVM / FES</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-amber-500 hover-card">
+                    <p class="text-xs font-semibold text-gray-500 uppercase">Unidades</p>
+                    <h3 id="kpi-total-units" class="text-lg font-bold text-amber-600 mt-1">0</h3>
+                    <span class="text-[10px] text-gray-400">Total Facturado</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-purple-600 hover-card">
+                    <p class="text-xs font-semibold text-gray-500 uppercase">Ticket Promedio</p>
+                    <h3 id="kpi-avg-ticket" class="text-lg font-bold text-purple-700 mt-1">$0</h3>
+                    <span class="text-[10px] text-gray-400">Por documento</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-teal-500 hover-card">
+                    <p class="text-xs font-semibold text-gray-500 uppercase">Total IVA</p>
+                    <h3 id="kpi-total-iva" class="text-lg font-bold text-teal-600 mt-1">$0</h3>
+                    <span class="text-[10px] text-gray-400">IVA Generado</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-indigo-600 hover-card">
+                    <p class="text-xs font-semibold text-gray-500 uppercase">Puntos Operativos</p>
+                    <h3 id="kpi-total-puntos" class="text-lg font-bold text-indigo-700 mt-1">0</h3>
+                    <span class="text-[10px] text-gray-400">Bodegas Activas</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                <div class="lg:col-span-5 bg-white p-4 rounded-xl card-shadow flex flex-col">
+                    <h3 class="text-sm font-bold text-mennar-blue mb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-map-location-dot text-mennar-green"></i> Cobertura y Disposición Geográfica
+                    </h3>
+                    <div id="map" class="flex-grow rounded-lg overflow-hidden border"></div>
+                </div>
+                <div class="lg:col-span-7 bg-white p-4 rounded-xl card-shadow flex flex-col">
+                    <h3 class="text-sm font-bold text-mennar-blue mb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-mennar-lightBlue"></i> Evolución Mensual / Diaria de Ventas 2026
+                    </h3>
+                    <div class="relative flex-grow min-h-[260px]">
+                        <canvas id="chart-trend"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                <div class="lg:col-span-6 bg-white p-4 rounded-xl card-shadow">
+                    <h3 class="text-sm font-bold text-mennar-blue mb-2">Distribución por Tipo de Contrato</h3>
+                    <div class="relative h-[250px] flex items-center justify-center">
+                        <canvas id="chart-contractual"></canvas>
+                    </div>
+                </div>
+                <div class="lg:col-span-6 bg-white p-4 rounded-xl card-shadow">
+                    <h3 class="text-sm font-bold text-mennar-blue mb-2">Top Clientes / E.S.E por Facturación</h3>
+                    <div class="relative h-[250px]">
+                        <canvas id="chart-clients"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PESTAÑA 2: DETALLE DE REMISIONES -->
+        <div id="view-remisiones" class="space-y-5 hidden">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-blue-600">
+                    <p class="text-xs font-semibold text-gray-500 uppercase">Unidades Pedidas</p>
+                    <h3 id="kpi-rem-pedidas" class="text-xl font-bold text-blue-700 mt-1">0</h3>
+                    <span class="text-[10px] text-gray-400">Solicitadas por cliente</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-emerald-600">
+                    <p class="text-xs font-semibold text-gray-500 uppercase">Unidades Remisionadas</p>
+                    <h3 id="kpi-rem-remisionadas" class="text-xl font-bold text-emerald-700 mt-1">0</h3>
+                    <span class="text-[10px] text-gray-400">Despachadas en RMD</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-purple-600">
+                    <p class="text-xs font-semibold text-gray-500 uppercase">Unidades Facturadas</p>
+                    <h3 id="kpi-rem-facturadas" class="text-xl font-bold text-purple-700 mt-1">0</h3>
+                    <span class="text-[10px] text-gray-400">Asociadas a Factura</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-red-500">
+                    <p class="text-xs font-semibold text-gray-500 uppercase">Pendientes (Le Debemos)</p>
+                    <h3 id="kpi-rem-pendientes" class="text-xl font-bold text-red-600 mt-1">0</h3>
+                    <span class="text-[10px] text-gray-400">Total unidades faltantes</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                <div class="lg:col-span-7 bg-white p-4 rounded-xl card-shadow">
+                    <h3 class="text-sm font-bold text-mennar-blue mb-2">Relación: Pedido vs. Remisionado vs. Facturado</h3>
+                    <div class="relative h-[270px]">
+                        <canvas id="chart-remision-comp"></canvas>
+                    </div>
+                </div>
+                <div class="lg:col-span-5 bg-white p-4 rounded-xl card-shadow">
+                    <h3 class="text-sm font-bold text-mennar-blue mb-2">% Cumplimiento de Entregas</h3>
+                    <div class="relative h-[270px] flex items-center justify-center">
+                        <canvas id="chart-remision-gauge"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PESTAÑA 3: SALDO PENDIENTE POR CLIENTE -->
+        <div id="view-pendientes" class="space-y-5 hidden">
+            <div class="bg-red-50 border-l-4 border-red-600 p-3.5 rounded-xl card-shadow text-xs text-red-900 flex flex-wrap justify-between items-center gap-3">
+                <div>
+                    <h4 class="font-bold text-sm mb-0.5"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Control de Deuda y Entregas Pendientes por Cliente (Año 2026)</h4>
+                    <p>Muestra exactamente el saldo acumulado de medicamentos que el cliente solicitó y que **Mennar S.A.S aún tiene pendiente por entregar**.</p>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <button onclick="downloadPendientesExcel()" class="bg-mennar-green hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-lg shadow flex items-center gap-2 transition cursor-pointer">
+                        <i class="fa-solid fa-file-excel text-sm"></i>
+                        <span>Descargar Excel lo que le Debemos</span>
+                    </button>
+                    <span id="badge-deuda-total" class="bg-red-600 text-white font-bold text-sm px-3 py-1.5 rounded-lg">0 Unidades Deuda</span>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl card-shadow overflow-hidden">
+                <div class="p-3 bg-mennar-blue text-white flex justify-between items-center text-xs font-bold">
+                    <span><i class="fa-solid fa-users text-amber-400 mr-2"></i> CONSOLIDADO DE DEUDA POR CLIENTE (PENDIENTES PEDIDAS)</span>
+                    <span id="badge-total-clientes-deuda" class="bg-amber-500 text-white px-2 py-0.5 rounded">0 Clientes afectos</span>
+                </div>
+                <div class="overflow-x-auto max-h-[280px]">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-gray-100 text-gray-700 sticky top-0">
+                            <tr>
+                                <th class="p-2.5">CC / NIT Tercero</th>
+                                <th class="p-2.5">Cliente / Entidad E.S.E</th>
+                                <th class="p-2.5">Tipo Contrato</th>
+                                <th class="p-2.5 text-right">Cant. Pedida</th>
+                                <th class="p-2.5 text-right">Cant. Remisionada</th>
+                                <th class="p-2.5 text-right text-red-600 font-bold">Saldo Pendiente (Le Debemos)</th>
+                                <th class="p-2.5 text-center">% Cumplimiento</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-pendientes-cliente-body" class="divide-y"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl card-shadow overflow-hidden">
+                <div class="p-3 bg-gray-800 text-white flex justify-between items-center text-xs font-bold">
+                    <span><i class="fa-solid fa-pills text-emerald-400 mr-2"></i> DETALLE DE MEDICAMENTOS FALTANTES POR ENTREGAR</span>
+                </div>
+                <div class="overflow-x-auto max-h-[300px]">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-gray-100 text-gray-700 sticky top-0">
+                            <tr>
+                                <th class="p-2.5">Doc. Remisión</th>
+                                <th class="p-2.5">CC / NIT</th>
+                                <th class="p-2.5">Cliente</th>
+                                <th class="p-2.5">Medicamento</th>
+                                <th class="p-2.5 text-right">Pedidas</th>
+                                <th class="p-2.5 text-right">Entregadas</th>
+                                <th class="p-2.5 text-right text-red-600 font-bold">Pendientes</th>
+                                <th class="p-2.5">Bodega</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-pendientes-prod-body" class="divide-y"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla General de Registros -->
+        <div class="bg-white rounded-xl card-shadow overflow-hidden">
+            <div class="p-3 bg-gray-50 border-b flex justify-between items-center text-xs">
+                <span class="font-bold text-mennar-blue"><i class="fa-solid fa-table-list mr-1"></i> Registros de la Vista Seleccionada</span>
+                <span id="table-record-count" class="font-semibold bg-blue-100 text-mennar-blue px-2 py-0.5 rounded-full">0 Registros</span>
+            </div>
+            <div class="overflow-x-auto max-h-[250px]">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-mennar-blue text-white sticky top-0">
+                        <tr>
+                            <th class="p-2">Tipo Contrato</th>
+                            <th class="p-2">Documento</th>
+                            <th class="p-2">Fecha</th>
+                            <th class="p-2">CC / NIT</th>
+                            <th class="p-2">Cliente / E.S.E</th>
+                            <th class="p-2">Bodega</th>
+                            <th class="p-2">Producto</th>
+                            <th class="p-2 text-right">Cant. Unidades</th>
+                            <th class="p-2 text-right">Total $</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="divide-y bg-white"></tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="bg-gray-800 text-gray-400 text-xs py-3 text-center mt-auto">
+        <p>© 2026 MENNAR S.A.S - Operación Logística & Analítica de Dispensación</p>
+    </footer>
+
+    <script>
+        let rawFacturacion = [];
+        let rawRemisiones = [];
+        let activeTab = 'facturacion';
+        let map = null;
+        let mapMarkers = [];
+
+        // Rutas relativas de los archivos almacenados en la carpeta /data del repositorio de GitHub
+        const GITHUB_FACTURACION_URL = './data/Facturacion_2026.xlsx';
+        const GITHUB_REMISIONES_URL = './data/Remisiones_2026.xls';
+
+        const locationCoords = {
+            'BODEGA PRINCIPAL CEDI': { lat: 2.4820, lng: -76.5620 },
+            'DISP. MENNAR 1': { lat: 2.4448, lng: -76.6147 },
+            'Disp. MENNAR MORALES 1': { lat: 2.7561, lng: -76.6214 },
+            'Disp. MENNAR SOTARA 1': { lat: 2.2225, lng: -76.6264 },
+            'Disp. MENNAR TIMBIO 1': { lat: 2.3486, lng: -76.6811 }
+        };
+        const defaultCoord = { lat: 2.4419, lng: -76.6063 };
+
+        let chartTrend, chartRemComp, chartRemGauge, chartContractual, chartClients;
+        let currentFilters = { contractual: null, mes: '', client: null, bodega: null, search: '' };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            loadDataFromGitHub();
+        });
+
+        // --- CARGA AUTOMÁTICA DESDE GITHUB ---
+        async function loadDataFromGitHub() {
+            // Actualizar indicadores visuales
+            document.getElementById('icon-fact').className = "fa-solid fa-spinner fa-spin text-blue-500 text-base";
+            document.getElementById('icon-rem').className = "fa-solid fa-spinner fa-spin text-amber-500 text-base";
+            document.getElementById('label-fact-file').textContent = "Descargando desde GitHub...";
+            document.getElementById('label-rem-file').textContent = "Descargando desde GitHub...";
+
+            try {
+                // Peticiones simultáneas a GitHub
+                const [factBuffer, remBuffer] = await Promise.all([
+                    fetch(GITHUB_FACTURACION_URL).then(res => {
+                        if (!res.ok) throw new Error("No se encontró el archivo de Facturación");
+                        return res.arrayBuffer();
+                    }),
+                    fetch(GITHUB_REMISIONES_URL).then(res => {
+                        if (!res.ok) throw new Error("No se encontró el archivo de Remisiones");
+                        return res.arrayBuffer();
+                    })
+                ]);
+
+                // Procesar Facturación
+                rawFacturacion = processFacturacionArrayBuffer(factBuffer);
+                document.getElementById('icon-fact').className = "fa-solid fa-circle-check text-mennar-green text-base";
+                document.getElementById('label-fact-file').textContent = "Cargado automáticamente (Facturacion_2026.xlsx)";
+                document.getElementById('badge-fact-count').textContent = `${rawFacturacion.length} reg`;
+
+                // Procesar Remisiones
+                rawRemisiones = processRemisionesArrayBuffer(remBuffer);
+                document.getElementById('icon-rem').className = "fa-solid fa-circle-check text-amber-600 text-base";
+                document.getElementById('label-rem-file').textContent = "Cargado automáticamente (Remisiones_2026.xls)";
+                document.getElementById('badge-rem-count').textContent = `${rawRemisiones.length} reg`;
+
+                populateFilterDropdowns();
+                updateUI();
+
+            } catch (err) {
+                console.error("Error cargando archivos desde GitHub:", err);
+                document.getElementById('label-fact-file').textContent = "Error al conectar con GitHub";
+                document.getElementById('label-rem-file').textContent = "Verifica la carpeta /data/";
+            }
+        }
+
+        function switchTab(tab) {
+            activeTab = tab;
+            document.getElementById('view-facturacion').classList.add('hidden');
+            document.getElementById('view-remisiones').classList.add('hidden');
+            document.getElementById('view-pendientes').classList.add('hidden');
+
+            document.getElementById('tab-btn-facturacion').className = "py-3 border-b-2 border-transparent hover:text-mennar-blue flex items-center gap-2 focus:outline-none";
+            document.getElementById('tab-btn-remisiones').className = "py-3 border-b-2 border-transparent hover:text-mennar-blue flex items-center gap-2 focus:outline-none";
+            document.getElementById('tab-btn-pendientes').className = "py-3 border-b-2 border-transparent hover:text-mennar-blue flex items-center gap-2 focus:outline-none";
+
+            if (tab === 'facturacion') {
+                document.getElementById('view-facturacion').classList.remove('hidden');
+                document.getElementById('tab-btn-facturacion').className = "py-3 border-b-2 border-mennar-blue text-mennar-blue font-bold flex items-center gap-2 focus:outline-none";
+            } else if (tab === 'remisiones') {
+                document.getElementById('view-remisiones').classList.remove('hidden');
+                document.getElementById('tab-btn-remisiones').className = "py-3 border-b-2 border-mennar-blue text-mennar-blue font-bold flex items-center gap-2 focus:outline-none";
+            } else if (tab === 'pendientes') {
+                document.getElementById('view-pendientes').classList.remove('hidden');
+                document.getElementById('tab-btn-pendientes').className = "py-3 border-b-2 border-mennar-blue text-mennar-blue font-bold flex items-center gap-2 focus:outline-none";
+            }
+            populateFilterDropdowns();
+            updateUI();
+        }
+
+        function initMap() {
+            map = L.map('map').setView([defaultCoord.lat, defaultCoord.lng], 9);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap &copy; CARTO | MENNAR S.A.S',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+        }
+
+        // --- REGLA EXCLUSIVA PARA TIPO CONTRATO ---
+        function detectTipoContrato(nitStr) {
+            const nit = String(nitStr || '').trim();
+            const contractualNits = [
+                '891501676',
+                '900145579',
+                '900146006',
+                '900146438',
+                '900145572',
+                '900146010'
+            ];
+            
+            if (contractualNits.includes(nit)) {
+                return 'Contractual';
+            }
+
+            return 'GENERAL';
+        }
+
+        // --- EXTRAER MES DESDE EL EXCEL ---
+        function extractMonth(dateVal) {
+            if (!dateVal) return '01';
+
+            if (!isNaN(dateVal) && parseFloat(dateVal) > 30000) {
+                const parsed = XLSX.SSF.parse_date_code(parseFloat(dateVal));
+                if (parsed && parsed.m) {
+                    return String(parsed.m).padStart(2, '0');
+                }
+            }
+
+            const str = String(dateVal).trim();
+
+            if (str.includes('/')) {
+                const parts = str.split('/');
+                if (parts.length >= 2) return parts[1].padStart(2, '0');
+            }
+            if (str.includes('-')) {
+                const parts = str.split('-');
+                if (parts.length >= 2) {
+                    if (parts[0].length === 4) return parts[1].padStart(2, '0');
+                    return parts[1].padStart(2, '0');
+                }
+            }
+
+            return '01';
+        }
+
+        // --- FORMATEADOR DE FECHAS DE EXCEL ---
+        function formatExcelDate(val) {
+            if (!val) return '';
+            
+            if (!isNaN(val) && parseFloat(val) > 30000) {
+                const dateObj = XLSX.SSF.parse_date_code(parseFloat(val));
+                if (dateObj) {
+                    const day = String(dateObj.d).padStart(2, '0');
+                    const month = String(dateObj.m).padStart(2, '0');
+                    const year = dateObj.y;
+                    const hour = String(dateObj.H || 0).padStart(2, '0');
+                    const min = String(dateObj.M || 0).padStart(2, '0');
+                    return `${day}/${month}/${year} ${hour}:${min}`;
+                }
+            }
+            
+            return String(val).trim();
+        }
+
+        // --- PARSER PROCESO FACTURACIÓN ---
+        function processFacturacionArrayBuffer(arrayBuffer) {
+            const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array', cellStyles: false, cellFormulas: false, cellDates: false });
+            const sheetArray = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
+
+            let headerIdx = -1;
+            for (let i = 0; i < Math.min(10, sheetArray.length); i++) {
+                const rowStr = sheetArray[i].join(" ").toLowerCase();
+                if (rowStr.includes("documento") || rowStr.includes("razon social") || rowStr.includes("total factura")) {
+                    headerIdx = i; break;
+                }
+            }
+            if (headerIdx === -1) headerIdx = 0;
+
+            const headers = sheetArray[headerIdx].map(h => String(h).trim());
+            const rows = sheetArray.slice(headerIdx + 1);
+
+            return rows.map(row => {
+                let item = {};
+                headers.forEach((h, idx) => item[h] = row[idx] !== undefined ? row[idx] : "");
+
+                const doc = item['Documento'] || 'S/D';
+                const fechaRaw = item['Fecha'] || '01/01/2026';
+                const fecha = formatExcelDate(fechaRaw);
+                const mes = extractMonth(fechaRaw);
+                const ccNit = item['Nit'] || item['CC. Tercero'] || item['Nit Origen'] || '';
+                const client = item['Razon Social'] || item['Nombre Tercero'] || item['Cliente'] || 'OTROS';
+                const bodega = item['Bodega Encabezado'] || item['Bodega Detalle'] || 'BODEGA PRINCIPAL CEDI';
+                const articulo = item['Detallado Descripcion Articulo'] || item['Articulo'] || 'PRODUCTO';
+                const contractual = detectTipoContrato(ccNit);
+                
+                const unidades = parseFloat(item['Unidades totales'] || item['Cantidades Venta'] || 1) || 1;
+                const total = parseFloat(item['Total Factura'] || item['Detallado Precio Total'] || 0) || 0;
+                const iva = parseFloat(item['Valor IVA'] || 0) || 0;
+
+                return { Contractual: String(contractual).trim(), CCTercero: String(ccNit).trim(), Documento: String(doc).trim(), Fecha: String(fecha).trim(), Mes: mes, Client: String(client).trim(), Bodega: String(bodega).trim(), Articulo: String(articulo).trim(), Unidades: Math.abs(unidades), Total: Math.abs(total), Iva: Math.abs(iva) };
+            }).filter(d => d.Documento !== 'S/D');
+        }
+
+        // --- PARSER PROCESO REMISIONES ---
+        function processRemisionesArrayBuffer(arrayBuffer) {
+            const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array', cellStyles: false, cellFormulas: false, cellDates: false });
+            const sheetArray = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
+
+            let headerIdx = -1;
+            for (let i = 0; i < Math.min(10, sheetArray.length); i++) {
+                const rowStr = sheetArray[i].join(" ").toLowerCase();
+                if (rowStr.includes("documento") || rowStr.includes("remisión") || rowStr.includes("tercero") || rowStr.includes("pedidas por el cliente")) {
+                    headerIdx = i; break;
+                }
+            }
+            if (headerIdx === -1) headerIdx = 0;
+
+            const headers = sheetArray[headerIdx].map(h => String(h).trim());
+            const rows = sheetArray.slice(headerIdx + 1);
+
+            return rows.map(row => {
+                let item = {};
+                headers.forEach((h, idx) => item[h] = row[idx] !== undefined ? row[idx] : "");
+
+                const doc = item['Documento'] || 'S/D';
+                const fechaRemRaw = item['Fecha y hora Remisión'] || item['Fecha Factura'] || '01/10/2026';
+                const fechaRem = formatExcelDate(fechaRemRaw);
+                const mes = extractMonth(fechaRemRaw);
+                const ccTercero = item['CC. Tercero'] || item['Nit'] || '';
+                const nombreTercero = item['Nombre Tercero'] || '';
+                const nombreCliente = item['Nombre Cliente'] || nombreTercero || 'OTROS';
+                const dirCliente = item['Dirección Cliente'] || '';
+                const telCliente = item['Teléfono Cliente'] || '';
+                const ciudad = item['Ciudad'] || '';
+                const codigo = item['Codigo'] || '';
+                const descripcion = item['Descripcion'] || 'MEDICAMENTO';
+                const presentacion = item['Presentacion'] || '';
+                const grupo = item['Grupo'] || '';
+                const bodega = item['Bodega detalle'] || item['Bodega'] || 'BODEGA PRINCIPAL CEDI';
+                const contractual = detectTipoContrato(ccTercero);
+
+                const pedidas = Math.abs(parseFloat(item['Cantidad pedida por el cliente'] || 0) || 0);
+                const remisionadas = Math.abs(parseFloat(item['Unidades Remisionadas al cliente'] || 0) || 0);
+                const facturadas = Math.abs(parseFloat(item['Unidades facturadas al cliente'] || 0) || 0);
+                
+                let rawPen = parseFloat(item['Pendientes pedidas por el cliente'] || 0);
+                let pendientes = Math.abs(rawPen);
+                if (isNaN(pendientes) || pendientes === 0) {
+                    pendientes = Math.max(0, pedidas - remisionadas);
+                }
+
+                const total = Math.abs(parseFloat(item['Total Venta con IVA'] || item['Total venta'] || 0) || 0);
+
+                return {
+                    Documento: String(doc).trim(),
+                    FechaHoraRemision: String(fechaRem).trim(),
+                    CCTercero: String(ccTercero).trim(),
+                    NombreTercero: String(nombreTercero).trim(),
+                    NombreCliente: String(nombreCliente).trim(),
+                    DireccionCliente: String(dirCliente).trim(),
+                    TelefonoCliente: String(telCliente).trim(),
+                    Ciudad: String(ciudad).trim(),
+                    Codigo: String(codigo).trim(),
+                    Descripcion: String(descripcion).trim(),
+                    Presentacion: String(presentacion).trim(),
+                    Grupo: String(grupo).trim(),
+                    UnidadesRemisionadas: remisionadas,
+                    UnidadesFacturadas: facturadas,
+                    CantidadPedida: pedidas,
+                    PendientesPedidas: pendientes,
+                    
+                    Client: String(nombreCliente).trim(),
+                    Bodega: String(bodega).trim(),
+                    Articulo: String(descripcion).trim(),
+                    Pedidas: pedidas,
+                    Remisionadas: remisionadas,
+                    Facturadas: facturadas,
+                    Pendientes: pendientes,
+                    Total: total,
+                    Mes: mes,
+                    Contractual: String(contractual).trim(),
+                    Fecha: fechaRem
+                };
+            }).filter(d => d.Documento !== 'S/D');
+        }
+
+        function populateFilterDropdowns() {
+            const dataPool = activeTab === 'facturacion' ? rawFacturacion : rawRemisiones;
+            fillSelect('filter-contractual', [...new Set(dataPool.map(d => d.Contractual))].sort(), 'Todos los Tipos de Contrato');
+            fillSelect('filter-client', [...new Set(dataPool.map(d => d.Client))].sort(), 'Todos los Clientes');
+            fillSelect('filter-bodega', [...new Set(dataPool.map(d => d.Bodega))].sort(), 'Todas las Bodegas');
+        }
+
+        function fillSelect(elemId, list, def) {
+            const select = document.getElementById(elemId);
+            select.innerHTML = `<option value="">${def}</option>`;
+            list.forEach(i => {
+                if (i) {
+                    const opt = document.createElement('option'); opt.value = i; opt.textContent = i;
+                    select.appendChild(opt);
+                }
+            });
+        }
+
+        function applyManualFilter(type, val) {
+            if (type === 'search') currentFilters.search = val.toLowerCase();
+            else currentFilters[type] = val || null;
+            updateUI();
+        }
+
+        function resetAllFilters() {
+            currentFilters = { contractual: null, mes: '', client: null, bodega: null, search: '' };
+            document.getElementById('filter-contractual').value = '';
+            document.getElementById('filter-mes').value = '';
+            document.getElementById('filter-client').value = '';
+            document.getElementById('filter-bodega').value = '';
+            document.getElementById('filter-search').value = '';
+            updateUI();
+        }
+
+        function getFilteredData(dataPool) {
+            return dataPool.filter(item => {
+                if (currentFilters.contractual && item.Contractual !== currentFilters.contractual) return false;
+                if (currentFilters.mes && item.Mes !== currentFilters.mes) return false;
+                if (currentFilters.client && item.Client !== currentFilters.client) return false;
+                if (currentFilters.bodega && item.Bodega !== currentFilters.bodega) return false;
+                if (currentFilters.search) {
+                    const s = currentFilters.search;
+                    return item.Documento.toLowerCase().includes(s) || item.Client.toLowerCase().includes(s) || (item.CCTercero && item.CCTercero.toLowerCase().includes(s)) || item.Articulo.toLowerCase().includes(s);
+                }
+                return true;
+            });
+        }
+
+        function updateUI() {
+            if (activeTab === 'facturacion') {
+                const filtered = getFilteredData(rawFacturacion);
+                renderFacturacionView(filtered);
+            } else {
+                const filtered = getFilteredData(rawRemisiones);
+                renderRemisionesView(filtered);
+            }
+        }
+
+        function renderFacturacionView(data) {
+            const totalVal = data.reduce((a, b) => a + b.Total, 0);
+            const totalDocs = new Set(data.map(d => d.Documento)).size;
+            const totalUnits = data.reduce((a, b) => a + b.Unidades, 0);
+            const totalIva = data.reduce((a, b) => a + b.Iva, 0);
+            const totalPuntos = new Set(data.map(d => d.Bodega)).size;
+
+            document.getElementById('kpi-total-val').textContent = formatCurrency(totalVal);
+            document.getElementById('kpi-total-docs').textContent = totalDocs;
+            document.getElementById('kpi-total-units').textContent = totalUnits.toLocaleString();
+            document.getElementById('kpi-avg-ticket').textContent = formatCurrency(totalDocs > 0 ? totalVal / totalDocs : 0);
+            document.getElementById('kpi-total-iva').textContent = formatCurrency(totalIva);
+            document.getElementById('kpi-total-puntos').textContent = totalPuntos;
+
+            const group = {};
+            data.forEach(d => group[d.Fecha] = (group[d.Fecha] || 0) + d.Total);
+            const ctx = document.getElementById('chart-trend').getContext('2d');
+            if (chartTrend) chartTrend.destroy();
+            chartTrend = new Chart(ctx, {
+                type: 'line',
+                data: { labels: Object.keys(group), datasets: [{ label: 'Venta COP', data: Object.values(group), borderColor: '#003366', backgroundColor: 'rgba(0,51,102,0.1)', fill: true }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            const cGroup = {};
+            data.forEach(d => cGroup[d.Contractual] = (cGroup[d.Contractual] || 0) + d.Total);
+            const ctxC = document.getElementById('chart-contractual').getContext('2d');
+            if (chartContractual) chartContractual.destroy();
+            chartContractual = new Chart(ctxC, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(cGroup),
+                    datasets: [{ data: Object.values(cGroup), backgroundColor: ['#003366', '#2e7d32', '#1e88e5', '#f59e0b', '#8b5cf6', '#ec4899'] }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            const clGroup = {};
+            data.forEach(d => clGroup[d.Client] = (clGroup[d.Client] || 0) + d.Total);
+            const sortedCl = Object.entries(clGroup).sort((a,b) => b[1] - a[1]).slice(0, 5);
+            const ctxCl = document.getElementById('chart-clients').getContext('2d');
+            if (chartClients) chartClients.destroy();
+            chartClients = new Chart(ctxCl, {
+                type: 'bar',
+                data: {
+                    labels: sortedCl.map(s => s[0].length > 25 ? s[0].substring(0, 25) + '...' : s[0]),
+                    datasets: [{ label: 'Ventas COP', data: sortedCl.map(s => s[1]), backgroundColor: '#2e7d32' }]
+                },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false }
+            });
+
+            renderTable(data);
+            updateMapMarkers(data);
+        }
+
+        function renderRemisionesView(data) {
+            const totalPed = data.reduce((a, b) => a + b.Pedidas, 0);
+            const totalRem = data.reduce((a, b) => a + b.Remisionadas, 0);
+            const totalFac = data.reduce((a, b) => a + b.Facturadas, 0);
+            const totalPen = data.reduce((a, b) => a + b.Pendientes, 0);
+
+            document.getElementById('kpi-rem-pedidas').textContent = totalPed.toLocaleString();
+            document.getElementById('kpi-rem-remisionadas').textContent = totalRem.toLocaleString();
+            document.getElementById('kpi-rem-facturadas').textContent = totalFac.toLocaleString();
+            document.getElementById('kpi-rem-pendientes').textContent = totalPen.toLocaleString();
+            document.getElementById('badge-deuda-total').textContent = `${totalPen.toLocaleString()} Unidades Deuda`;
+
+            const ctx1 = document.getElementById('chart-remision-comp').getContext('2d');
+            if (chartRemComp) chartRemComp.destroy();
+            chartRemComp = new Chart(ctx1, {
+                type: 'bar',
+                data: { labels: ['Pedidas', 'Remisionadas', 'Facturadas'], datasets: [{ data: [totalPed, totalRem, totalFac], backgroundColor: ['#1e88e5', '#2e7d32', '#8b5cf6'] }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            const ctx2 = document.getElementById('chart-remision-gauge').getContext('2d');
+            const pct = totalPed > 0 ? ((totalRem / totalPed) * 100).toFixed(1) : 100;
+            if (chartRemGauge) chartRemGauge.destroy();
+            chartRemGauge = new Chart(ctx2, {
+                type: 'doughnut',
+                data: { labels: ['Remisionado %', 'Pendiente %'], datasets: [{ data: [pct, 100 - pct], backgroundColor: ['#2e7d32', '#ef4444'] }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            const clientGroup = {};
+            data.forEach(d => {
+                if (!clientGroup[d.Client]) clientGroup[d.Client] = { nit: d.CCTercero, tipo: d.Contractual, ped: 0, rem: 0, pen: 0 };
+                clientGroup[d.Client].ped += d.Pedidas;
+                clientGroup[d.Client].rem += d.Remisionadas;
+                clientGroup[d.Client].pen += d.Pendientes;
+            });
+
+            const tbodyClient = document.getElementById('table-pendientes-cliente-body');
+            tbodyClient.innerHTML = '';
+            let countDeuda = 0;
+            Object.entries(clientGroup).forEach(([client, val]) => {
+                if (val.pen > 0) countDeuda++;
+                const cPct = val.ped > 0 ? ((val.rem / val.ped) * 100).toFixed(1) : 100;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-2.5 font-semibold text-gray-600">${val.nit || 'N/A'}</td>
+                    <td class="p-2.5 font-bold text-mennar-blue">${client}</td>
+                    <td class="p-2.5 font-semibold text-amber-700">${val.tipo}</td>
+                    <td class="p-2.5 text-right">${val.ped.toLocaleString()}</td>
+                    <td class="p-2.5 text-right text-emerald-700 font-semibold">${val.rem.toLocaleString()}</td>
+                    <td class="p-2.5 text-right text-red-600 font-bold">${val.pen.toLocaleString()}</td>
+                    <td class="p-2.5 text-center"><span class="px-2 py-0.5 rounded text-white text-[10px] ${cPct >= 90 ? 'bg-emerald-600' : 'bg-amber-600'}">${cPct}%</span></td>
+                `;
+                tbodyClient.appendChild(tr);
+            });
+            document.getElementById('badge-total-clientes-deuda').textContent = `${countDeuda} Clientes afectos`;
+
+            const tbodyProd = document.getElementById('table-pendientes-prod-body');
+            tbodyProd.innerHTML = '';
+            data.filter(d => d.Pendientes > 0).forEach(d => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-2 font-semibold text-mennar-blue">${d.Documento}</td>
+                    <td class="p-2 text-gray-500">${d.CCTercero}</td>
+                    <td class="p-2 font-medium">${d.Client}</td>
+                    <td class="p-2 font-medium text-gray-800">${d.Articulo}</td>
+                    <td class="p-2 text-right">${d.Pedidas}</td>
+                    <td class="p-2 text-right text-emerald-700">${d.Remisionadas}</td>
+                    <td class="p-2 text-right text-red-600 font-bold">${d.Pendientes}</td>
+                    <td class="p-2 text-gray-500">${d.Bodega}</td>
+                `;
+                tbodyProd.appendChild(tr);
+            });
+
+            renderTable(data);
+        }
+
+        // --- DESCARGA DE EXCEL DE PENDIENTES ---
+        function downloadPendientesExcel() {
+            const filteredRemisiones = getFilteredData(rawRemisiones);
+            const pendientesData = filteredRemisiones.filter(d => d.PendientesPedidas > 0);
+
+            if (pendientesData.length === 0) {
+                alert("No hay registros pendientes por entregar con los filtros actuales.");
+                return;
+            }
+
+            const exportData = pendientesData.map(d => ({
+                'Documento': d.Documento,
+                'Fecha y hora Remisión': formatExcelDate(d.FechaHoraRemision),
+                'CC. Tercero': d.CCTercero,
+                'Nombre Tercero': d.NombreTercero,
+                'Nombre Cliente': d.NombreCliente,
+                'Dirección Cliente': d.DireccionCliente,
+                'Teléfono Cliente': d.TelefonoCliente,
+                'Ciudad': d.Ciudad,
+                'Codigo': d.Codigo,
+                'Descripcion': d.Descripcion,
+                'Presentacion': d.Presentacion,
+                'Grupo': d.Grupo,
+                'Unidades Remisionadas al cliente': d.UnidadesRemisionadas,
+                'Unidades facturadas al cliente': d.UnidadesFacturadas,
+                'Cantidad pedida por el cliente': d.CantidadPedida,
+                'Pendientes pedidas por el cliente': d.PendientesPedidas
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Pendientes_Clientes");
+
+            const fileName = `Mennar_Pendientes_por_Cliente_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+            document.getElementById('table-record-count').textContent = `${data.length} Registros`;
+
+            data.slice(0, 50).forEach(row => {
+                const tr = document.createElement('tr');
+                const units = row.Unidades !== undefined ? row.Unidades : row.Remisionadas;
+                tr.innerHTML = `
+                    <td class="p-2 font-semibold text-amber-700">${row.Contractual}</td>
+                    <td class="p-2 font-semibold text-gray-700">${row.Documento}</td>
+                    <td class="p-2">${row.Fecha}</td>
+                    <td class="p-2 text-gray-500">${row.CCTercero || 'N/A'}</td>
+                    <td class="p-2 font-medium">${row.Client}</td>
+                    <td class="p-2">${row.Bodega}</td>
+                    <td class="p-2">${row.Articulo}</td>
+                    <td class="p-2 text-right font-bold">${units.toLocaleString()}</td>
+                    <td class="p-2 text-right font-bold text-mennar-green">${formatCurrency(row.Total)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateMapMarkers(data) {
+            mapMarkers.forEach(m => map.removeLayer(m));
+            mapMarkers = [];
+            const bodegaGroup = {};
+            data.forEach(d => bodegaGroup[d.Bodega] = (bodegaGroup[d.Bodega] || 0) + d.Total);
+
+            Object.entries(bodegaGroup).forEach(([bodega, val]) => {
+                const coords = locationCoords[bodega] || defaultCoord;
+                const circle = L.circleMarker([coords.lat, coords.lng], { color: '#003366', fillColor: '#2e7d32', fillOpacity: 0.7, radius: 12 }).addTo(map);
+                circle.bindPopup(`<b>${bodega}</b><br>Total: ${formatCurrency(val)}`);
+                mapMarkers.push(circle);
+            });
+        }
+
+        function formatCurrency(val) {
+            return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
+        }
+    </script>
+</body>
+</html>
