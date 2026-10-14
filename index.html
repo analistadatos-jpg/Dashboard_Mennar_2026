@@ -255,6 +255,30 @@
             loadDataFromGitHub();
         });
 
+        // --- FUNCIÓN CONVERSORA DE FECHAS DE EXCEL ---
+        function formatExcelDate(val) {
+            if (!val) return '01/01/2026';
+            if (typeof val === 'number' || (!isNaN(val) && !String(val).includes('/') && !String(val).includes('-'))) {
+                const num = parseFloat(val);
+                if (num > 30000) {
+                    const dateObj = XLSX.SSF.parse_date_code(num);
+                    if (dateObj) {
+                        const day = String(dateObj.d).padStart(2, '0');
+                        const month = String(dateObj.m).padStart(2, '0');
+                        return `${day}/${month}/${dateObj.y}`;
+                    }
+                }
+            }
+            return String(val).trim();
+        }
+
+        function extractMonth(fechaStr) {
+            if (!fechaStr) return '01';
+            if (fechaStr.includes('/')) return fechaStr.split('/')[1] || '01';
+            if (fechaStr.includes('-')) return fechaStr.split('-')[1] || '01';
+            return '01';
+        }
+
         async function loadDataFromGitHub() {
             document.getElementById('status-icon').className = "fa-solid fa-spinner fa-spin text-blue-600";
             document.getElementById('status-msg').textContent = "Procesando ventas y remisiones en segundo plano...";
@@ -322,16 +346,17 @@
                 if (!doc || doc === 'S/D') return null;
                 const nit = String(m['Nit'] || m['CC. Tercero'] || m['Nit Origen'] || '').trim();
                 const contractual = ['891501676', '900145579', '900146006', '900146438', '900145572', '900146010'].includes(nit) ? 'Contractual' : 'GENERAL';
-                const fecha = String(m['Fecha'] || '01/01/2026').trim();
-                let mes = '01';
-                if (fecha.includes('/')) mes = fecha.split('/')[1] || '01';
-                else if (fecha.includes('-')) mes = fecha.split('-')[1] || '01';
+                
+                const fechaRaw = m['Fecha'] || '01/01/2026';
+                const fechaFormatted = formatExcelDate(fechaRaw);
+                const mesVal = extractMonth(fechaFormatted);
+
                 return { 
                     Contractual: contractual, 
                     CCTercero: nit, 
                     Documento: doc, 
-                    Fecha: fecha, 
-                    Mes: mes.padStart(2,'0'), 
+                    Fecha: fechaFormatted, 
+                    Mes: mesVal.padStart(2,'0'), 
                     Client: String(m['Razon Social'] || m['Nombre Tercero'] || m['Cliente'] || 'OTROS').trim(), 
                     Bodega: String(m['Bodega Encabezado'] || m['Bodega Detalle'] || 'CEDI').trim(), 
                     Articulo: String(m['Detallado Descripcion Articulo'] || m['Articulo'] || 'PRODUCTO').trim(), 
@@ -353,16 +378,18 @@
                 if (!doc || doc === 'S/D') return null;
                 const nit = String(m['CC. Tercero'] || m['Nit'] || '').trim();
                 const contractual = ['891501676', '900145579', '900146006', '900146438', '900145572', '900146010'].includes(nit) ? 'Contractual' : 'GENERAL';
-                const fecha = String(m['Fecha y hora Remisión'] || '01/01/2026').trim();
-                let mes = '01';
-                if (fecha.includes('/')) mes = fecha.split('/')[1] || '01';
+                
+                const fechaRaw = m['Fecha y hora Remisión'] || m['Fecha'] || '01/01/2026';
+                const fechaFormatted = formatExcelDate(fechaRaw);
+                const mesVal = extractMonth(fechaFormatted);
+
                 const ped = Math.abs(parseFloat(m['Cantidad pedida por el cliente'] || 0) || 0);
                 const rem = Math.abs(parseFloat(m['Unidades Remisionadas al cliente'] || 0) || 0);
                 const fac = Math.abs(parseFloat(m['Unidades facturadas al cliente'] || 0) || 0);
                 let pen = Math.abs(parseFloat(m['Pendientes pedidas por el cliente'] || 0) || 0);
                 if (!pen) pen = Math.max(0, ped - rem);
 
-                return { Documento: doc, CCTercero: nit, Contractual: contractual, Client: String(m['Nombre Cliente'] || m['Nombre Tercero'] || 'OTROS').trim(), Bodega: String(m['Bodega detalle'] || 'CEDI').trim(), Articulo: String(m['Descripcion'] || 'MEDICAMENTO').trim(), Pedidas: ped, Remisionadas: rem, Facturadas: fac, Pendientes: pen, Total: Math.abs(parseFloat(m['Total Venta con IVA'] || 0) || 0), Mes: mes.padStart(2,'0'), Fecha: fecha };
+                return { Documento: doc, CCTercero: nit, Contractual: contractual, Client: String(m['Nombre Cliente'] || m['Nombre Tercero'] || 'OTROS').trim(), Bodega: String(m['Bodega detalle'] || 'CEDI').trim(), Articulo: String(m['Descripcion'] || 'MEDICAMENTO').trim(), Pedidas: ped, Remisionadas: rem, Facturadas: fac, Pendientes: pen, Total: Math.abs(parseFloat(m['Total Venta con IVA'] || 0) || 0), Mes: mesVal.padStart(2,'0'), Fecha: fechaFormatted };
             }).filter(Boolean);
         }
 
@@ -465,7 +492,7 @@
             chartRemComp = new Chart(document.getElementById('chart-rem-comp'), {
                 type: 'bar',
                 data: { labels: ['Pedidas','Remisionadas','Facturadas','Pendientes'], datasets: [{ data: [ped,rem,fac,pen], backgroundColor: ['#1e88e5','#2e7d32','#8b5cf6','#ef4444'] }] },
-                options: { responsive: true, maintainAspectRatio: false }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
             });
         }
 
