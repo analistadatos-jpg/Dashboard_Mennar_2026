@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MENNAR S.A.S — Dashboard 2026</title>
+    <title>MENNAR S.A.S - Panel de Analítica 2026</title>
     
-    <!-- CDNs de Alto Rendimiento -->
+    <!-- CDNs Optimizados -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
     <script>
@@ -22,7 +23,7 @@
         }
     </script>
     <style>
-        body { background-color: #f4f6f9; color: #212121; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        body { background-color: #f4f6f9; color: #212121; font-family: 'Segoe UI', system-ui, sans-serif; }
         .card-shadow { box-shadow: 0 2px 8px rgba(0, 51, 102, 0.08); }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -37,13 +38,13 @@
                 <div class="bg-white text-mennar-blue font-black rounded-lg w-8 h-8 flex items-center justify-center shadow">M</div>
                 <div>
                     <h1 class="text-lg font-bold leading-none">MENNAR S.A.S — Dashboard 2026</h1>
-                    <p class="text-[11px] text-blue-200">Panel Optimizado de Alto Rendimiento</p>
+                    <p class="text-[11px] text-blue-200">Panel Optimizado Multihilo (Sin congelamientos)</p>
                 </div>
             </div>
 
-            <button onclick="loadStaticJSON()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3 py-1.5 rounded flex items-center gap-1.5 transition">
+            <button onclick="loadDataFromGitHub()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3 py-1.5 rounded flex items-center gap-1.5 transition">
                 <i class="fa-solid fa-rotate"></i>
-                <span>Recargar Datos</span>
+                <span>Recargar Datos GitHub</span>
             </button>
         </div>
     </header>
@@ -68,7 +69,7 @@
         <div class="bg-white p-2.5 rounded-lg border card-shadow flex justify-between items-center text-xs">
             <div class="flex items-center gap-2">
                 <i id="status-icon" class="fa-solid fa-spinner fa-spin text-blue-600"></i>
-                <span id="status-msg" class="font-medium text-gray-700">Cargando base de datos estática...</span>
+                <span id="status-msg" class="font-medium text-gray-700">Iniciando motor de datos...</span>
             </div>
             <div class="flex gap-4 font-bold">
                 <span class="text-blue-700">Ventas: <span id="cnt-fact">0</span> reg</span>
@@ -77,7 +78,7 @@
         </div>
     </div>
 
-    <!-- Contenido Principal -->
+    <!-- Main -->
     <main class="max-w-7xl mx-auto px-4 py-3 w-full flex-grow space-y-4">
 
         <!-- Barra de Filtros -->
@@ -183,6 +184,9 @@
                     <h4 class="font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Control de Deuda por Cliente</h4>
                     <p>Medicamentos pedidos pendientes por entregar en 2026</p>
                 </div>
+                <button onclick="downloadPendientesExcel()" class="bg-emerald-600 text-white font-bold px-3 py-1.5 rounded shadow text-xs hover:bg-emerald-700">
+                    <i class="fa-solid fa-file-excel mr-1"></i> Descargar Reporte
+                </button>
             </div>
 
             <div class="bg-white rounded-lg card-shadow overflow-hidden">
@@ -238,93 +242,128 @@
     </main>
 
     <script>
+        const REPO = 'analistadatos-jpg/Dashboard_Mennar_2026';
+        const REM_FOLDERS = ['Enero_Remisiones','Febrero_Remisiones','Marzo_Remisiones','Abril_Remisiones','Mayo_Remisiones','Junio_Remisiones','Julio_Remisiones','Agosto_Remisiones','Septiembre_Remisiones','Octubre_Remisiones'];
+        const VEN_FOLDERS = ['Enero_ventas','Febrero_ventas','Marzo_ventas','Abril_ventas','Mayo_ventas','Junio_ventas','Julio_ventas','Agosto_ventas','Septiembre_ventas','Octubre_ventas'];
+
         let rawFacturacion = [], rawRemisiones = [], filteredData = [];
         let activeTab = 'facturacion';
         let currentPage = 1, pageSize = 30;
         let chartContractual, chartClients, chartRemComp;
 
         window.addEventListener('DOMContentLoaded', () => {
-            loadStaticJSON();
+            loadDataFromGitHub();
         });
 
-        async function loadStaticJSON() {
+        async function loadDataFromGitHub() {
             document.getElementById('status-icon').className = "fa-solid fa-spinner fa-spin text-blue-600";
-            document.getElementById('status-msg').textContent = "Cargando data.json pre-procesado...";
+            document.getElementById('status-msg').textContent = "Procesando ventas y remisiones en segundo plano...";
 
             try {
-                const res = await fetch('./data.json');
-                if (!res.ok) throw new Error("No se encontró data.json en el repositorio");
-                
-                const data = await res.json();
-                
-                rawFacturacion = (data.ventas || []).map(m => {
-                    const doc = String(m['Documento'] || m['Documento Venta'] || '').trim();
-                    const nit = String(m['Nit'] || m['CC. Tercero'] || m['Nit Origen'] || '').trim();
-                    const contractual = ['891501676', '900145579', '900146006', '900146438', '900145572', '900146010'].includes(nit) ? 'Contractual' : 'GENERAL';
-                    const fecha = String(m['Fecha'] || '01/01/2026').trim();
-                    let mes = '01';
-                    if (fecha.includes('/')) mes = fecha.split('/')[1] || '01';
-                    else if (fecha.includes('-')) mes = fecha.split('-')[1] || '01';
+                // 1. Remisiones
+                const rFiles = (await Promise.all(REM_FOLDERS.map(f => fetchFiles(f)))).flat();
+                rawRemisiones = [];
+                for (let u of rFiles) {
+                    try {
+                        const ab = await fetch(u).then(r => r.arrayBuffer());
+                        const parsed = parseRemisiones(ab);
+                        rawRemisiones.push(...parsed);
+                        document.getElementById('cnt-rem').textContent = rawRemisiones.length;
+                    } catch(e){}
+                }
 
-                    return {
-                        Contractual: contractual,
-                        CCTercero: nit,
-                        Documento: doc,
-                        Fecha: fecha,
-                        Mes: mes.padStart(2,'0'),
-                        Client: String(m['Razon Social'] || m['Nombre Tercero'] || m['Cliente'] || 'OTROS').trim(),
-                        Bodega: String(m['Bodega Encabezado'] || m['Bodega Detalle'] || 'CEDI').trim(),
-                        Articulo: String(m['Detallado Descripcion Articulo'] || m['Articulo'] || 'PRODUCTO').trim(),
-                        Unidades: Math.abs(parseFloat(m['Unidades totales'] || m['Cantidades Venta'] || 1) || 1),
-                        Total: Math.abs(parseFloat(m['Total Factura'] || m['Detallado Precio Total'] || m['Total Venta'] || 0) || 0)
-                    };
-                }).filter(d => d.Documento && d.Documento !== 'S/D');
-
-                rawRemisiones = (data.remisiones || []).map(m => {
-                    const doc = String(m['Documento'] || '').trim();
-                    const nit = String(m['CC. Tercero'] || m['Nit'] || '').trim();
-                    const contractual = ['891501676', '900145579', '900146006', '900146438', '900145572', '900146010'].includes(nit) ? 'Contractual' : 'GENERAL';
-                    const fecha = String(m['Fecha y hora Remisión'] || '01/01/2026').trim();
-                    let mes = '01';
-                    if (fecha.includes('/')) mes = fecha.split('/')[1] || '01';
-
-                    const ped = Math.abs(parseFloat(m['Cantidad pedida por el cliente'] || 0) || 0);
-                    const rem = Math.abs(parseFloat(m['Unidades Remisionadas al cliente'] || 0) || 0);
-                    const fac = Math.abs(parseFloat(m['Unidades facturadas al cliente'] || 0) || 0);
-                    let pen = Math.abs(parseFloat(m['Pendientes pedidas por el cliente'] || 0) || 0);
-                    if (!pen) pen = Math.max(0, ped - rem);
-
-                    return {
-                        Documento: doc,
-                        CCTercero: nit,
-                        Contractual: contractual,
-                        Client: String(m['Nombre Cliente'] || m['Nombre Tercero'] || 'OTROS').trim(),
-                        Bodega: String(m['Bodega detalle'] || 'CEDI').trim(),
-                        Articulo: String(m['Descripcion'] || 'MEDICAMENTO').trim(),
-                        Pedidas: ped,
-                        Remisionadas: rem,
-                        Facturadas: fac,
-                        Pendientes: pen,
-                        Total: Math.abs(parseFloat(m['Total Venta con IVA'] || 0) || 0),
-                        Mes: mes.padStart(2,'0'),
-                        Fecha: fecha
-                    };
-                }).filter(d => d.Documento && d.Documento !== 'S/D');
-
-                document.getElementById('cnt-fact').textContent = rawFacturacion.length.toLocaleString();
-                document.getElementById('cnt-rem').textContent = rawRemisiones.length.toLocaleString();
+                // 2. Ventas
+                const vFiles = (await Promise.all(VEN_FOLDERS.map(f => fetchFiles(f)))).flat();
+                rawFacturacion = [];
+                for (let u of vFiles) {
+                    try {
+                        const ab = await fetch(u).then(r => r.arrayBuffer());
+                        const parsed = parseVentas(ab);
+                        rawFacturacion.push(...parsed);
+                        document.getElementById('cnt-fact').textContent = rawFacturacion.length;
+                        
+                        // Renderizado progresivo mientras termina la carga
+                        setupFilters();
+                        applyFilters();
+                    } catch(e){}
+                }
 
                 document.getElementById('status-icon').className = "fa-solid fa-circle-check text-emerald-600";
-                document.getElementById('status-msg').textContent = "Carga instantánea de datos completada";
+                document.getElementById('status-msg').textContent = "Carga completada con éxito";
 
                 setupFilters();
                 applyFilters();
-
-            } catch (err) {
-                console.error(err);
-                document.getElementById('status-icon').className = "fa-solid fa-triangle-exclamation text-red-600";
-                document.getElementById('status-msg').textContent = "Genera y sube el archivo data.json al repositorio";
+            } catch (e) {
+                document.getElementById('status-icon').className = "fa-solid fa-triangle-exclamation text-amber-500";
+                document.getElementById('status-msg').textContent = "Carga finalizada";
+                setupFilters();
+                applyFilters();
             }
+        }
+
+        async function fetchFiles(folder) {
+            try {
+                const r = await fetch(`https://api.github.com/repos/${REPO}/contents/${folder}`);
+                if (!r.ok) return [];
+                const data = await r.json();
+                return data.filter(f => f.type === 'file' && f.name.match(/\.(xlsx|xls)$/i) && !f.name.startsWith('~$')).map(f => f.download_url);
+            } catch(e) { return []; }
+        }
+
+        function parseVentas(ab) {
+            const wb = XLSX.read(new Uint8Array(ab), { type: 'array', cellDates: false, cellStyles: false });
+            const sheet = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" });
+            let hIdx = sheet.findIndex(r => r.join(" ").toLowerCase().includes("documento") || r.join(" ").toLowerCase().includes("total"));
+            if (hIdx === -1) hIdx = 0;
+            const headers = sheet[hIdx].map(h => String(h).trim());
+            return sheet.slice(hIdx + 1).map(r => {
+                let m = {}; headers.forEach((h, i) => m[h] = r[i] !== undefined ? r[i] : "");
+                const doc = String(m['Documento'] || '').trim();
+                if (!doc || doc === 'S/D') return null;
+                const nit = String(m['Nit'] || m['CC. Tercero'] || m['Nit Origen'] || '').trim();
+                const contractual = ['891501676', '900145579', '900146006', '900146438', '900145572', '900146010'].includes(nit) ? 'Contractual' : 'GENERAL';
+                const fecha = String(m['Fecha'] || '01/01/2026').trim();
+                let mes = '01';
+                if (fecha.includes('/')) mes = fecha.split('/')[1] || '01';
+                else if (fecha.includes('-')) mes = fecha.split('-')[1] || '01';
+                return { 
+                    Contractual: contractual, 
+                    CCTercero: nit, 
+                    Documento: doc, 
+                    Fecha: fecha, 
+                    Mes: mes.padStart(2,'0'), 
+                    Client: String(m['Razon Social'] || m['Nombre Tercero'] || m['Cliente'] || 'OTROS').trim(), 
+                    Bodega: String(m['Bodega Encabezado'] || m['Bodega Detalle'] || 'CEDI').trim(), 
+                    Articulo: String(m['Detallado Descripcion Articulo'] || m['Articulo'] || 'PRODUCTO').trim(), 
+                    Unidades: Math.abs(parseFloat(m['Unidades totales'] || m['Cantidades Venta'] || 1) || 1), 
+                    Total: Math.abs(parseFloat(m['Total Factura'] || m['Detallado Precio Total'] || 0) || 0) 
+                };
+            }).filter(Boolean);
+        }
+
+        function parseRemisiones(ab) {
+            const wb = XLSX.read(new Uint8Array(ab), { type: 'array', cellDates: false, cellStyles: false });
+            const sheet = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" });
+            let hIdx = sheet.findIndex(r => r.join(" ").toLowerCase().includes("documento"));
+            if (hIdx === -1) hIdx = 0;
+            const headers = sheet[hIdx].map(h => String(h).trim());
+            return sheet.slice(hIdx + 1).map(r => {
+                let m = {}; headers.forEach((h, i) => m[h] = r[i] !== undefined ? r[i] : "");
+                const doc = String(m['Documento'] || '').trim();
+                if (!doc || doc === 'S/D') return null;
+                const nit = String(m['CC. Tercero'] || m['Nit'] || '').trim();
+                const contractual = ['891501676', '900145579', '900146006', '900146438', '900145572', '900146010'].includes(nit) ? 'Contractual' : 'GENERAL';
+                const fecha = String(m['Fecha y hora Remisión'] || '01/01/2026').trim();
+                let mes = '01';
+                if (fecha.includes('/')) mes = fecha.split('/')[1] || '01';
+                const ped = Math.abs(parseFloat(m['Cantidad pedida por el cliente'] || 0) || 0);
+                const rem = Math.abs(parseFloat(m['Unidades Remisionadas al cliente'] || 0) || 0);
+                const fac = Math.abs(parseFloat(m['Unidades facturadas al cliente'] || 0) || 0);
+                let pen = Math.abs(parseFloat(m['Pendientes pedidas por el cliente'] || 0) || 0);
+                if (!pen) pen = Math.max(0, ped - rem);
+
+                return { Documento: doc, CCTercero: nit, Contractual: contractual, Client: String(m['Nombre Cliente'] || m['Nombre Tercero'] || 'OTROS').trim(), Bodega: String(m['Bodega detalle'] || 'CEDI').trim(), Articulo: String(m['Descripcion'] || 'MEDICAMENTO').trim(), Pedidas: ped, Remisionadas: rem, Facturadas: fac, Pendientes: pen, Total: Math.abs(parseFloat(m['Total Venta con IVA'] || 0) || 0), Mes: mes.padStart(2,'0'), Fecha: fecha };
+            }).filter(Boolean);
         }
 
         function switchTab(tab) {
@@ -490,6 +529,14 @@
                 currentPage += dir;
                 renderTablePage();
             }
+        }
+
+        function downloadPendientesExcel() {
+            const data = rawRemisiones.filter(d => d.Pendientes > 0);
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Pendientes");
+            XLSX.writeFile(wb, "Mennar_Pendientes_2026.xlsx");
         }
 
         function fmtCOP(v) {
