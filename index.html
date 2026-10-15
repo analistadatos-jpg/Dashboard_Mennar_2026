@@ -8,7 +8,6 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-wasm.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
     <script>
@@ -36,7 +35,7 @@
                     <p class="text-[11px] text-blue-200">Motor Parquet de Alta Velocidad (DuckDB-WASM)</p>
                 </div>
             </div>
-            <button onclick="loadData()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3 py-1.5 rounded flex items-center gap-1.5 transition">
+            <button id="btn-reload" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3 py-1.5 rounded flex items-center gap-1.5 transition">
                 <i class="fa-solid fa-rotate"></i>
                 <span>Recargar Parquet</span>
             </button>
@@ -47,7 +46,7 @@
         <div class="bg-white p-3 rounded-lg border card-shadow flex justify-between items-center text-xs">
             <div class="flex items-center gap-2">
                 <i id="status-icon" class="fa-solid fa-spinner fa-spin text-blue-600"></i>
-                <span id="status-msg" class="font-medium text-gray-700">Iniciando motor DuckDB...</span>
+                <span id="status-msg" class="font-medium text-gray-700">Cargando módulos DuckDB...</span>
             </div>
             <div class="flex gap-4 font-bold">
                 <span class="text-blue-700">Ventas: <span id="cnt-fact" class="num">0</span> reg</span>
@@ -70,7 +69,10 @@
         </section>
     </main>
 
-    <script>
+    <!-- Script tipo módulo para importar DuckDB-WASM correctamente -->
+    <script type="module">
+        import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm';
+
         const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
         async function loadData() {
@@ -87,12 +89,11 @@
                 await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
                 const conn = await db.connect();
 
-                statusMsg.innerText = "Cargando archivos Parquet de todos los meses...";
+                statusMsg.innerText = "Cargando archivos Parquet desde el repositorio...";
 
                 let archivosVentas = [];
                 let archivosRemisiones = [];
 
-                // Registrar archivos individuales presentes en la raíz del repositorio
                 for (const mes of MESES) {
                     const fileVentas = `./${mes}_ventas.parquet`;
                     const fileRem = `./${mes}_Remisiones.parquet`;
@@ -111,10 +112,9 @@
                 }
 
                 if (archivosVentas.length === 0) {
-                    throw new Error("No se encontraron archivos Parquet de ventas en el repositorio.");
+                    throw new Error("No se encontraron archivos Parquet en el repositorio.");
                 }
 
-                // Consultar unión de todas las ventas
                 const queryVentas = `SELECT * FROM read_parquet([${archivosVentas.join(',')}]) LIMIT 50`;
                 const resVentas = await conn.query(queryVentas);
                 const arrayVentas = resVentas.toArray().map(r => r.toJSON());
@@ -147,6 +147,7 @@
             }
         }
 
+        document.getElementById('btn-reload').addEventListener('click', loadData);
         window.addEventListener('DOMContentLoaded', loadData);
     </script>
 </body>
