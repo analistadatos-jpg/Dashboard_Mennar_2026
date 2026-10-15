@@ -5,12 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MENNAR S.A.S - Panel de Analítica 2026 (Parquet Engine)</title>
 
-    <!-- Conexiones tempranas -->
-    <link rel="preconnect" href="https://api.github.com">
-    <link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-
-    <!-- Librerías -->
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-wasm.js"></script>
@@ -28,13 +23,10 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .num { font-variant-numeric: tabular-nums; }
         tbody tr:hover { background: #f8fafc; }
-        button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #1e88e5; outline-offset: 1px; }
-        @media (prefers-reduced-motion: reduce) { .fa-spin { animation: none; } }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
 
-    <!-- Header Corporativo -->
     <header class="bg-mennar-blue text-white shadow sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 py-2.5 flex justify-between items-center">
             <div class="flex items-center gap-3">
@@ -44,31 +36,18 @@
                     <p class="text-[11px] text-blue-200">Motor Parquet de Alta Velocidad (DuckDB-WASM)</p>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
-                <button onclick="loadData(true)" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3 py-1.5 rounded flex items-center gap-1.5 transition">
-                    <i class="fa-solid fa-rotate"></i>
-                    <span>Recargar Datos Parquet</span>
-                </button>
-            </div>
+            <button onclick="loadData()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3 py-1.5 rounded flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-rotate"></i>
+                <span>Recargar Parquet</span>
+            </button>
         </div>
     </header>
 
-    <!-- Pestañas -->
-    <nav class="bg-white border-b sticky top-[52px] z-40 card-shadow">
-        <div class="max-w-7xl mx-auto px-4 flex space-x-6 text-xs font-bold text-gray-600 overflow-x-auto whitespace-nowrap">
-            <button id="tab-facturacion" onclick="switchTab('facturacion')" class="py-3 border-b-2 flex items-center gap-2"><i class="fa-solid fa-chart-pie"></i> Ventas / Facturación</button>
-            <button id="tab-remisiones" onclick="switchTab('remisiones')" class="py-3 border-b-2 flex items-center gap-2"><i class="fa-solid fa-boxes-packing"></i> Remisiones</button>
-            <button id="tab-pendientes" onclick="switchTab('pendientes')" class="py-3 border-b-2 flex items-center gap-2"><i class="fa-solid fa-clock-rotate-left text-red-600"></i> Deuda al Cliente (Pendientes)</button>
-            <button id="tab-correlacion" onclick="switchTab('correlacion')" class="py-3 border-b-2 flex items-center gap-2"><i class="fa-solid fa-link text-mennar-lightBlue"></i> Correlación Remisión ↔ Factura</button>
-        </div>
-    </nav>
-
-    <!-- Estado de carga -->
     <div class="max-w-7xl mx-auto px-4 mt-3 w-full">
-        <div class="bg-white p-2.5 rounded-lg border card-shadow flex flex-wrap gap-2 justify-between items-center text-xs">
-            <div class="flex items-center gap-2" role="status" aria-live="polite">
+        <div class="bg-white p-3 rounded-lg border card-shadow flex justify-between items-center text-xs">
+            <div class="flex items-center gap-2">
                 <i id="status-icon" class="fa-solid fa-spinner fa-spin text-blue-600"></i>
-                <span id="status-msg" class="font-medium text-gray-700">Iniciando motor de datos Parquet...</span>
+                <span id="status-msg" class="font-medium text-gray-700">Iniciando motor DuckDB...</span>
             </div>
             <div class="flex gap-4 font-bold">
                 <span class="text-blue-700">Ventas: <span id="cnt-fact" class="num">0</span> reg</span>
@@ -78,503 +57,97 @@
     </div>
 
     <main class="max-w-7xl mx-auto px-4 py-3 w-full flex-grow space-y-4">
-
-        <!-- Filtros -->
-        <div class="bg-white p-3 rounded-lg card-shadow grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-            <div>
-                <label for="flt-contractual" class="block font-semibold text-gray-600 mb-1">Tipo Contrato</label>
-                <select id="flt-contractual" onchange="applyFilters()" class="w-full p-1.5 border rounded bg-gray-50"><option value="">Todos</option></select>
-            </div>
-            <div>
-                <label for="flt-mes" class="block font-semibold text-gray-600 mb-1">Mes 2026</label>
-                <select id="flt-mes" onchange="applyFilters()" class="w-full p-1.5 border rounded bg-gray-50">
-                    <option value="">Todo 2026</option>
-                    <option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option>
-                    <option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option>
-                    <option value="07">Julio</option><option value="08">Agosto</option><option value="09">Septiembre</option>
-                    <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
-                </select>
-            </div>
-            <div>
-                <label for="flt-client" class="block font-semibold text-gray-600 mb-1">Cliente / E.S.E</label>
-                <select id="flt-client" onchange="applyFilters()" class="w-full p-1.5 border rounded bg-gray-50"><option value="">Todos</option></select>
-            </div>
-            <div>
-                <label for="flt-bodega" class="block font-semibold text-gray-600 mb-1">Bodega</label>
-                <select id="flt-bodega" onchange="applyFilters()" class="w-full p-1.5 border rounded bg-gray-50"><option value="">Todas</option></select>
-            </div>
-            <div>
-                <label for="flt-search" class="block font-semibold text-gray-600 mb-1">Búsqueda Rápida</label>
-                <input type="text" id="flt-search" oninput="onSearch()" placeholder="Documento, NIT, cliente, producto..." class="w-full p-1.5 border rounded bg-gray-50" autocomplete="off">
-            </div>
-        </div>
-
-        <!-- VISTA 1: FACTURACIÓN -->
-        <section id="view-facturacion" class="space-y-4">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-mennar-blue">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Venta Total</p>
-                    <h3 id="kpi-val" class="text-base font-bold text-mennar-blue num">$0</h3>
-                </div>
-                <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-emerald-600">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Facturas</p>
-                    <h3 id="kpi-docs" class="text-base font-bold text-emerald-700 num">0</h3>
-                </div>
-                <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-amber-500">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Unidades Facturadas</p>
-                    <h3 id="kpi-units" class="text-base font-bold text-amber-600 num">0</h3>
-                </div>
-                <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-purple-600">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Ticket Promedio</p>
-                    <h3 id="kpi-ticket" class="text-base font-bold text-purple-700 num">$0</h3>
-                </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="bg-white p-3 rounded-lg card-shadow">
-                    <h4 class="text-xs font-bold text-mennar-blue mb-2">Ventas por Tipo de Contrato</h4>
-                    <div class="h-[200px] relative"><canvas id="chart-contractual"></canvas></div>
-                </div>
-                <div class="bg-white p-3 rounded-lg card-shadow">
-                    <h4 class="text-xs font-bold text-mennar-blue mb-2">Top 5 Clientes</h4>
-                    <div class="h-[200px] relative"><canvas id="chart-clients"></canvas></div>
-                </div>
-            </div>
-        </section>
-
-        <!-- VISTA 2: REMISIONES -->
-        <section id="view-remisiones" class="space-y-4 hidden">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-blue-600">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Unidades Pedidas</p>
-                    <h3 id="kpi-rem-ped" class="text-base font-bold text-blue-700 num">0</h3>
-                </div>
-                <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-emerald-600">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Remisionadas</p>
-                    <h3 id="kpi-rem-rem" class="text-base font-bold text-emerald-700 num">0</h3>
-                </div>
-                <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-purple-600">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Facturadas</p>
-                    <h3 id="kpi-rem-fac" class="text-base font-bold text-purple-700 num">0</h3>
-                </div>
-                <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-red-500">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Pendientes (Le Debemos)</p>
-                    <h3 id="kpi-rem-pen" class="text-base font-bold text-red-600 num">0</h3>
-                </div>
-            </div>
-            <div class="bg-white p-3 rounded-lg card-shadow">
-                <h4 class="text-xs font-bold text-mennar-blue mb-2">Comparativo General de Despacho</h4>
-                <div class="h-[220px] relative"><canvas id="chart-rem-comp"></canvas></div>
-            </div>
-        </section>
-
-        <!-- VISTA 3: PENDIENTES -->
-        <section id="view-pendientes" class="space-y-4 hidden">
-            <div class="bg-red-50 p-3 rounded-lg border-l-4 border-red-600 flex justify-between items-center text-xs text-red-900">
-                <div>
-                    <h4 class="font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Control de Deuda por Cliente</h4>
-                    <p>Medicamentos pedidos pendientes por entregar en 2026</p>
-                </div>
-            </div>
-            <div class="bg-white rounded-lg card-shadow overflow-hidden">
-                <div class="p-2.5 bg-mennar-blue text-white text-xs font-bold flex justify-between">
-                    <span>SALDO PENDIENTE ACUMULADO</span><span id="lbl-deuda-total" class="num"></span>
-                </div>
-                <div class="overflow-x-auto max-h-[300px]">
-                    <table class="w-full text-left text-xs">
-                        <thead class="bg-gray-100 text-gray-700 sticky top-0">
-                            <tr>
-                                <th class="p-2">NIT Tercero</th>
-                                <th class="p-2">Cliente / E.S.E</th>
-                                <th class="p-2">Tipo Contrato</th>
-                                <th class="p-2 text-right">Cant. Pedida</th>
-                                <th class="p-2 text-right">Cant. Entregada</th>
-                                <th class="p-2 text-right text-red-600 font-bold">Saldo Pendiente</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbl-deuda-body" class="divide-y"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- VISTA 4: CORRELACIÓN -->
-        <section id="view-correlacion" class="space-y-4 hidden">
-            <div class="bg-blue-50 p-3 rounded-lg border-l-4 border-mennar-lightBlue text-xs text-blue-900">
-                <h4 class="font-bold"><i class="fa-solid fa-link mr-1"></i> Cruce Remisiones ↔ Facturación</h4>
-                <p>Se cruzan las unidades remisionadas contra las unidades facturadas en Ventas, por NIT del cliente y mes.</p>
-            </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-mennar-blue">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Correlación r (Cliente × Mes)</p>
-                    <h3 id="kpi-corr-pair" class="text-base font-bold text-mennar-blue num">—</h3>
-                    <p id="lbl-corr-pair" class="text-[10px] text-gray-500"></p>
-                </div>
-                <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-purple-600">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Correlación r (Mensual)</p>
-                    <h3 id="kpi-corr-mon" class="text-base font-bold text-purple-700 num">—</h3>
-                    <p id="lbl-corr-mon" class="text-[10px] text-gray-500"></p>
-                </div>
-                <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-emerald-600">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Cobertura Facturado / Remisionado</p>
-                    <h3 id="kpi-corr-cov" class="text-base font-bold text-emerald-700 num">—</h3>
-                </div>
-                <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-red-500">
-                    <p class="text-[10px] uppercase font-bold text-gray-400">Brecha (Uds sin facturar)</p>
-                    <h3 id="kpi-corr-gap" class="text-base font-bold text-red-600 num">0</h3>
-                </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="bg-white p-3 rounded-lg card-shadow">
-                    <h4 class="text-xs font-bold text-mennar-blue mb-2">Unidades por mes: Remisionadas vs Facturadas</h4>
-                    <div class="h-[220px] relative"><canvas id="chart-corr-mon"></canvas></div>
-                </div>
-                <div class="bg-white p-3 rounded-lg card-shadow">
-                    <h4 class="text-xs font-bold text-mennar-blue mb-2">Dispersión Cliente × Mes</h4>
-                    <div class="h-[220px] relative"><canvas id="chart-corr-scatter"></canvas></div>
-                </div>
-            </div>
-        </section>
-
-        <!-- TABLA PRINCIPAL CON PAGINACIÓN -->
-        <section id="box-main-table" class="bg-white rounded-lg card-shadow overflow-hidden">
-            <div class="p-2.5 bg-gray-50 border-b flex justify-between items-center text-xs">
-                <span class="font-bold text-mennar-blue"><i class="fa-solid fa-list mr-1"></i> Registros Encontrados: <span id="lbl-total-rec" class="num">0</span></span>
-                <div class="flex items-center gap-2">
-                    <button onclick="goPage(1)" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700">&laquo;</button>
-                    <button onclick="changePage(-1)" class="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700">&lt;</button>
-                    <span>Página <span id="lbl-page" class="num">1</span> de <span id="lbl-total-pages" class="num">1</span></span>
-                    <button onclick="changePage(1)" class="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700">&gt;</button>
-                    <button onclick="goPage(Infinity)" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700">&raquo;</button>
-                </div>
-            </div>
-            <div class="overflow-x-auto max-h-[380px]">
+        <section class="bg-white rounded-lg card-shadow p-4">
+            <h3 class="text-sm font-bold text-mennar-blue mb-2"><i class="fa-solid fa-table mr-2"></i>Vista Previa de Ventas Consolidadas Parquet</h3>
+            <div class="overflow-x-auto max-h-[400px]">
                 <table class="w-full text-left text-xs">
                     <thead class="bg-mennar-blue text-white sticky top-0">
-                        <tr>
-                            <th class="p-2">Tipo</th>
-                            <th class="p-2">Documento</th>
-                            <th class="p-2">Fecha</th>
-                            <th class="p-2">NIT</th>
-                            <th class="p-2">Cliente / E.S.E</th>
-                            <th class="p-2">Bodega</th>
-                            <th class="p-2">Producto</th>
-                            <th class="p-2 text-right">Cant.</th>
-                            <th class="p-2 text-right">Total $</th>
-                        </tr>
+                        <tr id="tbl-header"></tr>
                     </thead>
-                    <tbody id="tbl-main-body" class="divide-y"></tbody>
+                    <tbody id="tbl-body" class="divide-y"></tbody>
                 </table>
             </div>
         </section>
     </main>
 
     <script>
-    'use strict';
+        const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-    const CONFIG = {
-        CONTRACTUAL_NITS: ['891501676', '900145579', '900146006', '900146438', '900145572', '900146010'],
-        PAGE_SIZE: 30
-    };
-    const MONTH_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        async function loadData() {
+            const statusMsg = document.getElementById('status-msg');
+            const statusIcon = document.getElementById('status-icon');
+            
+            try {
+                statusMsg.innerText = "Inicializando DuckDB-WASM...";
+                
+                const DUCKDB_BUNDLES = duckdb.getJsDelivrBundles();
+                const bundle = await duckdb.selectBundle(DUCKDB_BUNDLES);
+                const worker = await duckdb.createWorker(bundle.mainWorker);
+                const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(), worker);
+                await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+                const conn = await db.connect();
 
-    const S = {
-        fact: [], rem: [],
-        F: [], R: [],
-        tab: 'facturacion',
-        page: 1,
-        charts: {}
-    };
+                statusMsg.innerText = "Cargando archivos Parquet de todos los meses...";
 
-    const $ = id => document.getElementById(id);
-    const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ESC[c]);
-    const fold = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    const nf = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
-    const cop = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-    const compact = new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 });
-    const fmtCOP = v => cop.format(v || 0);
-    const fmtN = v => nf.format(v || 0);
+                let archivosVentas = [];
+                let archivosRemisiones = [];
 
-    function setStatus(kind, msg) {
-        const icons = {
-            loading: 'fa-solid fa-spinner fa-spin text-blue-600',
-            ok: 'fa-solid fa-circle-check text-emerald-600',
-            error: 'fa-solid fa-circle-xmark text-red-600'
-        };
-        $('status-icon').className = icons[kind] || icons.loading;
-        $('status-msg').textContent = msg;
-    }
+                // Registrar archivos individuales presentes en la raíz del repositorio
+                for (const mes of MESES) {
+                    const fileVentas = `./${mes}_ventas.parquet`;
+                    const fileRem = `./${mes}_Remisiones.parquet`;
 
-    /* =====================================================================
-       CARGAR DATOS DESDE ARCHIVOS PARQUET USANDO DUCKDB-WASM
-       ===================================================================== */
-    async function loadData() {
-        setStatus('loading', 'Inicializando motor DuckDB-WASM...');
-        try {
-            const DUCKDB_BUNDLES = duckdb.getJsDelivrBundles();
-            const bundle = await duckdb.selectBundle(DUCKDB_BUNDLES);
-            const worker = await duckdb.createWorker(bundle.mainWorker);
-            const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(), worker);
-            await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-            const conn = await db.connect();
+                    try {
+                        await db.registerFileURL(`v_${mes}.parquet`, fileVentas, duckdb.DuckDBDataProtocol.HTTP, false);
+                        await conn.query(`SELECT 1 FROM 'v_${mes}.parquet' LIMIT 1`);
+                        archivosVentas.push(`'v_${mes}.parquet'`);
+                    } catch (e) {}
 
-            setStatus('loading', 'Leyendo archivos Parquet desde el repositorio...');
+                    try {
+                        await db.registerFileURL(`r_${mes}.parquet`, fileRem, duckdb.DuckDBDataProtocol.HTTP, false);
+                        await conn.query(`SELECT 1 FROM 'r_${mes}.parquet' LIMIT 1`);
+                        archivosRemisiones.push(`'r_${mes}.parquet'`);
+                    } catch (e) {}
+                }
 
-            // Buscar archivos Parquet en las carpetas correspondientes
-            const rutasVentas = ['./Parquet_General_Ventas/Ventas.parquet', './Parquet_General_Ventas/ventas.parquet'];
-            const rutasRem = ['./Parquet_General_Remisiones/Remisiones.parquet', './Parquet_General_Remisiones/remisiones.parquet'];
+                if (archivosVentas.length === 0) {
+                    throw new Error("No se encontraron archivos Parquet de ventas en el repositorio.");
+                }
 
-            let loadedVentas = false;
-            for (const r of rutasVentas) {
-                try {
-                    await db.registerFileURL('ventas.parquet', r, duckdb.DuckDBDataProtocol.HTTP, false);
-                    await conn.query(`SELECT 1 FROM 'ventas.parquet' LIMIT 1`);
-                    loadedVentas = true; break;
-                } catch (e) {}
+                // Consultar unión de todas las ventas
+                const queryVentas = `SELECT * FROM read_parquet([${archivosVentas.join(',')}]) LIMIT 50`;
+                const resVentas = await conn.query(queryVentas);
+                const arrayVentas = resVentas.toArray().map(r => r.toJSON());
+
+                let cntRem = 0;
+                if (archivosRemisiones.length > 0) {
+                    const queryRem = `SELECT COUNT(*) as total FROM read_parquet([${archivosRemisiones.join(',')}])`;
+                    const resRem = await conn.query(queryRem);
+                    cntRem = resRem.toArray()[0].toJSON().total;
+                }
+
+                document.getElementById('cnt-fact').innerText = arrayVentas.length;
+                document.getElementById('cnt-rem').innerText = cntRem;
+
+                if (arrayVentas.length > 0) {
+                    const keys = Object.keys(arrayVentas[0]);
+                    document.getElementById('tbl-header').innerHTML = keys.map(k => `<th class="p-2">${k}</th>`).join('');
+                    document.getElementById('tbl-body').innerHTML = arrayVentas.map(row => {
+                        return `<tr>${keys.map(k => `<td class="p-2">${row[k] ?? ''}</td>`).join('')}</tr>`;
+                    }).join('');
+                }
+
+                statusIcon.className = "fa-solid fa-circle-check text-emerald-600";
+                statusMsg.innerText = `¡Se cargaron ${archivosVentas.length} meses de ventas y ${archivosRemisiones.length} meses de remisiones en Parquet!`;
+
+            } catch (err) {
+                console.error("Error al cargar Parquet:", err);
+                statusIcon.className = "fa-solid fa-circle-xmark text-red-600";
+                statusMsg.innerText = err.message || "Error al leer Parquet.";
             }
-
-            let loadedRem = false;
-            for (const r of rutasRem) {
-                try {
-                    await db.registerFileURL('remisiones.parquet', r, duckdb.DuckDBDataProtocol.HTTP, false);
-                    await conn.query(`SELECT 1 FROM 'remisiones.parquet' LIMIT 1`);
-                    loadedRem = true; break;
-                } catch (e) {}
-            }
-
-            // Mapeo dinámico de datos de Ventas
-            if (loadedVentas) {
-                const res = await conn.query(`SELECT * FROM 'ventas.parquet'`);
-                const rawVentas = res.toArray().map(row => row.toJSON());
-                S.fact = rawVentas.map(r => {
-                    const doc = String(r['Documento'] || r['Numero Factura'] || '').trim();
-                    const nit = String(r['Documento Cliente'] || r['CC. Tercero'] || r['Nit'] || '').trim();
-                    const client = String(r['Razon Social Cliente'] || r['Nombre Cliente'] || 'OTROS').trim();
-                    const art = String(r['Descripcion'] || r['Articulo'] || 'PRODUCTO').trim();
-                    return {
-                        Contractual: CONFIG.CONTRACTUAL_NITS.includes(nit) ? 'Contractual' : 'GENERAL',
-                        CCTercero: nit, Documento: doc,
-                        Fecha: r['Fecha Factura'] ? String(r['Fecha Factura']).slice(0, 10) : '',
-                        Mes: r['Fecha Factura'] ? String(r['Fecha Factura']).slice(5, 7) : '00',
-                        Client: client, Bodega: String(r['Bodega Encabezado'] || 'CEDI').trim(),
-                        Articulo: art,
-                        Unidades: Math.abs(Number(r['Cantidad'] || r['Unidades'] || 0)),
-                        Total: Math.abs(Number(r['Total Venta'] || r['Valor Facturado'] || 0)),
-                        Q: fold(doc + ' ' + nit + ' ' + client + ' ' + art)
-                    };
-                });
-            }
-
-            // Mapeo dinámico de datos de Remisiones
-            if (loadedRem) {
-                const res = await conn.query(`SELECT * FROM 'remisiones.parquet'`);
-                const rawRem = res.toArray().map(row => row.toJSON());
-                S.rem = rawRem.map(r => {
-                    const doc = String(r['Documento'] || '').trim();
-                    const nit = String(r['CC. Tercero'] || r['Nit'] || '').trim();
-                    const client = String(r['Nombre Cliente'] || 'OTROS').trim();
-                    const art = String(r['Descripcion'] || 'MEDICAMENTO').trim();
-                    const ped = Math.abs(Number(r['Cantidad pedida por el cliente'] || 0));
-                    const rem = Math.abs(Number(r['Unidades Remisionadas al cliente'] || 0));
-                    const fac = Math.abs(Number(r['Unidades facturadas al cliente'] || 0));
-                    const pen = Math.abs(Number(r['Pendientes pedidas por el cliente'] || Math.max(0, ped - rem)));
-                    return {
-                        Documento: doc, CCTercero: nit,
-                        Contractual: CONFIG.CONTRACTUAL_NITS.includes(nit) ? 'Contractual' : 'GENERAL',
-                        Client: client, Bodega: String(r['Bodega detalle'] || 'CEDI').trim(),
-                        Articulo: art, Pedidas: ped, Remisionadas: rem, Facturadas: fac, Pendientes: pen,
-                        Total: Math.abs(Number(r['Total Venta con IVA'] || 0)),
-                        Mes: r['Fecha Factura'] ? String(r['Fecha Factura']).slice(5, 7) : '00',
-                        Fecha: r['Fecha Factura'] ? String(r['Fecha Factura']).slice(0, 10) : '',
-                        Q: fold(doc + ' ' + nit + ' ' + client + ' ' + art)
-                    };
-                });
-            }
-
-            $('cnt-fact').textContent = fmtN(S.fact.length);$('cnt-rem').textContent = fmtN(S.rem.length);
-
-            fillFilters();
-            renderNow();
-            setStatus('ok', `¡Archivos Parquet procesados con éxito! (${S.fact.length} ventas / ${S.rem.length} remisiones)`);
-
-        } catch (err) {
-            console.error("Error al cargar Parquet:", err);
-            setStatus('error', 'Error cargando Parquet: ' + (err.message || 'Verifica que los archivos existan en las carpetas.'));
         }
-    }
 
-    /* =====================================================================
-       FILTROS Y RENDERIZADO
-       ===================================================================== */
-    function fillSelect(id, values) {
-        const s = $(id), cur = s.value;
-        const first = s.options[0];
-        const frag = document.createDocumentFragment();
-        frag.appendChild(first.cloneNode(true));
-        values.forEach(v => { if (v) { const o = document.createElement('option'); o.value = v; o.textContent = v; frag.appendChild(o); } });
-        s.innerHTML = ''; s.appendChild(frag); s.value = values.includes(cur) ? cur : '';
-    }
-
-    function fillFilters() {
-        const c = new Set(), cl = new Set(), b = new Set();
-        for (const pool of [S.fact, S.rem]) for (let i = 0; i < pool.length; i++) { c.add(pool[i].Contractual); cl.add(pool[i].Client); b.add(pool[i].Bodega); }
-        const srt = x => [...x].sort((p, q) => p.localeCompare(q, 'es'));
-        fillSelect('flt-contractual', srt(c));
-        fillSelect('flt-client', srt(cl));
-        fillSelect('flt-bodega', srt(b));
-    }
-
-    function getFilters() {
-        return {
-            c: $('flt-contractual').value, m: $('flt-mes').value, cl:$('flt-client').value,
-            b: $('flt-bodega').value, q: fold($('flt-search').value.trim())
-        };
-    }
-
-    function filterPool(pool, f) {
-        if (!f.c && !f.m && !f.cl && !f.b && !f.q) return pool;
-        const out = [];
-        for (let i = 0; i < pool.length; i++) {
-            const d = pool[i];
-            if (f.c && d.Contractual !== f.c) continue;
-            if (f.m && d.Mes !== f.m) continue;
-            if (f.cl && d.Client !== f.cl) continue;
-            if (f.b && d.Bodega !== f.b) continue;
-            if (f.q && d.Q.indexOf(f.q) < 0) continue;
-            out.push(d);
-        }
-        return out;
-    }
-
-    function renderNow() {
-        const f = getFilters();
-        S.F = filterPool(S.fact, f);
-        S.R = filterPool(S.rem, f);
-
-        if (S.tab === 'facturacion') renderFacturacion();
-        else if (S.tab === 'remisiones') renderRemisiones();
-        else if (S.tab === 'pendientes') renderPendientes();
-        else renderCorrelacion();
-        renderTablePage();
-    }
-
-    function applyFilters() { S.page = 1; renderNow(); }
-    function onSearch() { renderNow(); }
-
-    function switchTab(tab) {
-        S.tab = tab; S.page = 1;
-        ['facturacion', 'remisiones', 'pendientes', 'correlacion'].forEach(t => {
-            $('view-' + t).classList.toggle('hidden', t !== tab);$('tab-' + t).className = t === tab
-                ? 'py-3 border-b-2 border-mennar-blue text-mennar-blue flex items-center gap-2'
-                : 'py-3 border-b-2 border-transparent hover:text-mennar-blue flex items-center gap-2';
-        });
-        $('box-main-table').classList.toggle('hidden', tab === 'correlacion');
-        renderNow();
-    }
-
-    function chartUpsert(key, canvasId, type, data, options) {
-        const ex = S.charts[key];
-        if (ex) { ex.data.labels = data.labels; ex.data.datasets = data.datasets; ex.update('none'); return ex; }
-        return (S.charts[key] = new Chart($(canvasId), { type, data, options }));
-    }
-
-    function renderFacturacion() {
-        const rows = S.F;
-        let tot = 0, units = 0;
-        const docs = new Set(), byContract = new Map(), byClient = new Map();
-        for (let i = 0; i < rows.length; i++) {
-            const d = rows[i];
-            tot += d.Total; units += d.Unidades; docs.add(d.Documento);
-            byContract.set(d.Contractual, (byContract.get(d.Contractual) || 0) + d.Total);
-            byClient.set(d.Client, (byClient.get(d.Client) || 0) + d.Total);
-        }
-        $('kpi-val').textContent = fmtCOP(tot);$('kpi-docs').textContent = fmtN(docs.size);
-        $('kpi-units').textContent = fmtN(units);$('kpi-ticket').textContent = fmtCOP(docs.size ? tot / docs.size : 0);
-
-        chartUpsert('contract', 'chart-contractual', 'doughnut',
-            { labels: [...byContract.keys()], datasets: [{ data: [...byContract.values()], backgroundColor: ['#003366', '#2e7d32', '#1e88e5'] }] },
-            { responsive: true, maintainAspectRatio: false, animation: false });
-
-        const top = [...byClient.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-        chartUpsert('clients', 'chart-clients', 'bar',
-            { labels: top.map(s => s[0].slice(0, 20)), datasets: [{ label: 'Ventas COP', data: top.map(s => s[1]), backgroundColor: '#2e7d32' }] },
-            { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false });
-    }
-
-    function renderRemisiones() {
-        const rows = S.R;
-        let ped = 0, rem = 0, fac = 0, pen = 0;
-        for (let i = 0; i < rows.length; i++) { const d = rows[i]; ped += d.Pedidas; rem += d.Remisionadas; fac += d.Facturadas; pen += d.Pendientes; }
-        $('kpi-rem-ped').textContent = fmtN(ped);$('kpi-rem-rem').textContent = fmtN(rem);
-        $('kpi-rem-fac').textContent = fmtN(fac);$('kpi-rem-pen').textContent = fmtN(pen);
-
-        chartUpsert('rem', 'chart-rem-comp', 'bar',
-            { labels: ['Pedidas', 'Remisionadas', 'Facturadas', 'Pendientes'], datasets: [{ data: [ped, rem, fac, pen], backgroundColor: ['#1e88e5', '#2e7d32', '#8b5cf6', '#ef4444'] }] },
-            { responsive: true, maintainAspectRatio: false, animation: false });
-    }
-
-    function renderPendientes() {
-        const g = new Map();
-        for (let i = 0; i < S.R.length; i++) {
-            const d = S.R[i], k = d.CCTercero || d.Client;
-            let o = g.get(k);
-            if (!o) g.set(k, o = { nit: d.CCTercero, cl: d.Client, tipo: d.Contractual, ped: 0, rem: 0, pen: 0 });
-            o.ped += d.Pedidas; o.rem += d.Remisionadas; o.pen += d.Pendientes;
-        }
-        const list = [...g.values()].filter(o => o.pen > 0).sort((a, b) => b.pen - a.pen);
-        let tot = 0; list.forEach(o => tot += o.pen);
-        $('lbl-deuda-total').textContent = `${fmtN(list.length)} clientes · ${fmtN(tot)} uds pendientes`;
-        $('tbl-deuda-body').innerHTML = list.slice(0, 300).map(o => `
-            <tr>
-                <td class="p-2 font-mono text-gray-500">${esc(o.nit)}</td>
-                <td class="p-2 font-bold text-mennar-blue">${esc(o.cl)}</td>
-                <td class="p-2 font-medium">${esc(o.tipo)}</td>
-                <td class="p-2 text-right num">${fmtN(o.ped)}</td>
-                <td class="p-2 text-right text-emerald-700 font-semibold num">${fmtN(o.rem)}</td>
-                <td class="p-2 text-right text-red-600 font-bold num">${fmtN(o.pen)}</td>
-            </tr>`).join('') || '<tr><td colspan="6" class="p-4 text-center text-gray-400">Sin saldos pendientes</td></tr>';
-    }
-
-    function renderCorrelacion() {
-        let totRem = 0, totFac = 0;
-        S.R.forEach(r => totRem += r.Remisionadas);
-        S.F.forEach(f => totFac += f.Unidades);
-
-        $('kpi-corr-cov').textContent = totRem ? (totFac / totRem * 100).toFixed(1) + '%' : '—';
-        $('kpi-corr-gap').textContent = fmtN(totRem - totFac);
-    }
-
-    function currentRows() { return S.tab === 'facturacion' ? S.F : S.R; }
-    function renderTablePage() {
-        const data = currentRows();
-        const totalPages = Math.max(1, Math.ceil(data.length / CONFIG.PAGE_SIZE));
-        if (S.page > totalPages) S.page = totalPages;
-        $('lbl-total-rec').textContent = fmtN(data.length);
-        $('lbl-total-pages').textContent = fmtN(totalPages);$('lbl-page').textContent = S.page;
-        const start = (S.page - 1) * CONFIG.PAGE_SIZE;
-        const slice = data.slice(start, start + CONFIG.PAGE_SIZE);
-        $('tbl-main-body').innerHTML = slice.map(r => `
-            <tr>
-                <td class="p-2 font-semibold text-amber-700">${esc(r.Contractual)}</td>
-                <td class="p-2 font-bold text-gray-700">${esc(r.Documento)}</td>
-                <td class="p-2 num">${esc(r.Fecha)}</td>
-                <td class="p-2 text-gray-500 font-mono">${esc(r.CCTercero)}</td>
-                <td class="p-2 font-medium">${esc(r.Client)}</td>
-                <td class="p-2">${esc(r.Bodega)}</td>
-                <td class="p-2 text-gray-800">${esc(r.Articulo)}</td>
-                <td class="p-2 text-right font-bold num">${fmtN(r.Unidades || r.Remisionadas)}</td>
-                <td class="p-2 text-right font-bold text-emerald-700 num">${fmtCOP(r.Total)}</td>
-            </tr>`).join('') || '<tr><td colspan="9" class="p-4 text-center text-gray-400">Sin registros encontrados</td></tr>';
-    }
-
-    function changePage(dir) { goPage(S.page + dir); }
-    function goPage(p) {
-        const totalPages = Math.max(1, Math.ceil(currentRows().length / CONFIG.PAGE_SIZE));
-        S.page = Math.min(totalPages, Math.max(1, p));
-        renderTablePage();
-    }
-
-    window.addEventListener('DOMContentLoaded', loadData);
+        window.addEventListener('DOMContentLoaded', loadData);
     </script>
 </body>
 </html>
