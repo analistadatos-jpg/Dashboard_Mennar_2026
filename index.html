@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MENNAR S.A.S - Panel de Analítica 2026</title>
+    <title>MENNAR S.A.S - Panel de Analítica 2026 (Parquet Engine)</title>
 
-    <!-- Conexiones tempranas: ahorran el handshake TLS al arrancar -->
+    <!-- Conexiones tempranas -->
     <link rel="preconnect" href="https://api.github.com">
     <link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 
-    <!-- Librerías con versión fija (cacheables por el navegador) -->
+    <!-- Librerías -->
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/dist/duckdb-wasm.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
     <script>
@@ -40,16 +41,13 @@
                 <div class="bg-white text-mennar-blue font-black rounded-lg w-8 h-8 flex items-center justify-center shadow">M</div>
                 <div>
                     <h1 class="text-lg font-bold leading-none">MENNAR S.A.S — Dashboard 2026</h1>
-                    <p class="text-[11px] text-blue-200">Conexión directa a GitHub · procesamiento en paralelo · caché local</p>
+                    <p class="text-[11px] text-blue-200">Motor Parquet de Alta Velocidad (DuckDB-WASM)</p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="loadData(true)" title="Descarga y procesa de nuevo todos los archivos" class="bg-white/10 hover:bg-white/20 text-white text-xs px-2.5 py-1.5 rounded transition">
-                    <i class="fa-solid fa-broom"></i> <span class="hidden sm:inline">Recarga completa</span>
-                </button>
-                <button onclick="loadData(false)" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3 py-1.5 rounded flex items-center gap-1.5 transition">
+                <button onclick="loadData(true)" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3 py-1.5 rounded flex items-center gap-1.5 transition">
                     <i class="fa-solid fa-rotate"></i>
-                    <span>Actualizar desde GitHub</span>
+                    <span>Recargar Datos Parquet</span>
                 </button>
             </div>
         </div>
@@ -70,14 +68,13 @@
         <div class="bg-white p-2.5 rounded-lg border card-shadow flex flex-wrap gap-2 justify-between items-center text-xs">
             <div class="flex items-center gap-2" role="status" aria-live="polite">
                 <i id="status-icon" class="fa-solid fa-spinner fa-spin text-blue-600"></i>
-                <span id="status-msg" class="font-medium text-gray-700">Iniciando motor de datos...</span>
+                <span id="status-msg" class="font-medium text-gray-700">Iniciando motor de datos Parquet...</span>
             </div>
             <div class="flex gap-4 font-bold">
                 <span class="text-blue-700">Ventas: <span id="cnt-fact" class="num">0</span> reg</span>
                 <span class="text-amber-700">Remisiones: <span id="cnt-rem" class="num">0</span> reg</span>
             </div>
         </div>
-        <div id="progress-wrap" class="h-1 bg-gray-200 rounded mt-1 overflow-hidden hidden"><div id="progress-bar" class="h-1 bg-emerald-600" style="width:0%"></div></div>
     </div>
 
     <main class="max-w-7xl mx-auto px-4 py-3 w-full flex-grow space-y-4">
@@ -177,9 +174,6 @@
                     <h4 class="font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Control de Deuda por Cliente</h4>
                     <p>Medicamentos pedidos pendientes por entregar en 2026</p>
                 </div>
-                <button onclick="downloadPendientesExcel()" class="bg-emerald-600 text-white font-bold px-3 py-1.5 rounded shadow text-xs hover:bg-emerald-700">
-                    <i class="fa-solid fa-file-excel mr-1"></i> Descargar Reporte
-                </button>
             </div>
             <div class="bg-white rounded-lg card-shadow overflow-hidden">
                 <div class="p-2.5 bg-mennar-blue text-white text-xs font-bold flex justify-between">
@@ -207,7 +201,7 @@
         <section id="view-correlacion" class="space-y-4 hidden">
             <div class="bg-blue-50 p-3 rounded-lg border-l-4 border-mennar-lightBlue text-xs text-blue-900">
                 <h4 class="font-bold"><i class="fa-solid fa-link mr-1"></i> Cruce Remisiones ↔ Facturación</h4>
-                <p>Se cruzan las unidades remisionadas contra las unidades facturadas en Ventas, por NIT del cliente y mes. Una cobertura cercana al 100% indica que todo lo remisionado ya fue facturado.</p>
+                <p>Se cruzan las unidades remisionadas contra las unidades facturadas en Ventas, por NIT del cliente y mes.</p>
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div class="bg-white p-3 rounded-lg card-shadow border-l-4 border-mennar-blue">
@@ -235,29 +229,8 @@
                     <div class="h-[220px] relative"><canvas id="chart-corr-mon"></canvas></div>
                 </div>
                 <div class="bg-white p-3 rounded-lg card-shadow">
-                    <h4 class="text-xs font-bold text-mennar-blue mb-2">Dispersión Cliente × Mes (cada punto = un cliente en un mes)</h4>
+                    <h4 class="text-xs font-bold text-mennar-blue mb-2">Dispersión Cliente × Mes</h4>
                     <div class="h-[220px] relative"><canvas id="chart-corr-scatter"></canvas></div>
-                </div>
-            </div>
-            <div class="bg-white rounded-lg card-shadow overflow-hidden">
-                <div class="p-2.5 bg-mennar-blue text-white text-xs font-bold flex justify-between">
-                    <span>CONCILIACIÓN POR CLIENTE</span><span id="lbl-corr-count" class="num"></span>
-                </div>
-                <div class="overflow-x-auto max-h-[320px]">
-                    <table class="w-full text-left text-xs">
-                        <thead class="bg-gray-100 text-gray-700 sticky top-0">
-                            <tr>
-                                <th class="p-2">NIT</th>
-                                <th class="p-2">Cliente / E.S.E</th>
-                                <th class="p-2 text-right">Remisionadas</th>
-                                <th class="p-2 text-right">Facturadas (Ventas)</th>
-                                <th class="p-2 text-right">Brecha</th>
-                                <th class="p-2 text-right">Cobertura</th>
-                                <th class="p-2 text-right">Ventas $</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbl-corr-body" class="divide-y"></tbody>
-                    </table>
                 </div>
             </div>
         </section>
@@ -267,11 +240,11 @@
             <div class="p-2.5 bg-gray-50 border-b flex justify-between items-center text-xs">
                 <span class="font-bold text-mennar-blue"><i class="fa-solid fa-list mr-1"></i> Registros Encontrados: <span id="lbl-total-rec" class="num">0</span></span>
                 <div class="flex items-center gap-2">
-                    <button onclick="goPage(1)" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700" aria-label="Primera página">&laquo;</button>
-                    <button onclick="changePage(-1)" class="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700" aria-label="Página anterior">&lt;</button>
+                    <button onclick="goPage(1)" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700">&laquo;</button>
+                    <button onclick="changePage(-1)" class="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700">&lt;</button>
                     <span>Página <span id="lbl-page" class="num">1</span> de <span id="lbl-total-pages" class="num">1</span></span>
-                    <button onclick="changePage(1)" class="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700" aria-label="Página siguiente">&gt;</button>
-                    <button onclick="goPage(Infinity)" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700" aria-label="Última página">&raquo;</button>
+                    <button onclick="changePage(1)" class="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700">&gt;</button>
+                    <button onclick="goPage(Infinity)" class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold text-gray-700">&raquo;</button>
                 </div>
             </div>
             <div class="overflow-x-auto max-h-[380px]">
@@ -298,431 +271,150 @@
     <script>
     'use strict';
 
-    /* =====================================================================
-       CONFIGURACIÓN — único lugar que hay que tocar para cambiar de repo
-       ===================================================================== */
     const CONFIG = {
-        REPO: 'analistadatos-jpg/Dashboard_Mennar_2026',
-        REF: 'HEAD',                 // 'HEAD' = rama por defecto del repo
-        PARSER_VER: '3',             // súbelo si cambias la lógica de parseo: invalida la caché
-        XLSX_URL: 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
         CONTRACTUAL_NITS: ['891501676', '900145579', '900146006', '900146438', '900145572', '900146010'],
         PAGE_SIZE: 30
     };
-    const MONTH_NAMES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
     const MONTH_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
-    /* =====================================================================
-       WORKER: descarga + parseo de cada Excel fuera del hilo principal.
-       Se serializa a Blob, así el HTML sigue siendo un único archivo.
-       ===================================================================== */
-    function workerMain() {
-        importScripts('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
-
-        const fold = s => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-        const norm = s => fold(s).replace(/[^a-z0-9]+/g, ' ').trim();
-        const pad2 = n => String(n).padStart(2, '0');
-
-        // Número tolerante: 1234.5 | "1.234,50" | "1,234.50" | "$ 1.234"
-        function num(v) {
-            if (typeof v === 'number') return isFinite(v) ? v : 0;
-            let s = String(v == null ? '' : v).replace(/[^\d.,\-]/g, '');
-            if (!s) return 0;
-            const lc = s.lastIndexOf(','), ld = s.lastIndexOf('.');
-            if (lc > -1 && ld > -1) s = lc > ld ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
-            else if (lc > -1) s = /,\d{1,2}$/.test(s) ? s.replace(',', '.') : s.replace(/,/g, '');
-            else if ((s.match(/\./g) || []).length > 1 || /^-?\d{1,3}\.\d{3}$/.test(s)) s = s.replace(/\./g, '');
-            const n = parseFloat(s);
-            return isFinite(n) ? n : 0;
-        }
-
-        // NIT: solo dígitos y sin dígito de verificación ("891.501.676-4" -> "891501676")
-        function cleanNit(v) {
-            let s = String(v == null ? '' : v).trim();
-            if (!s) return '';
-            const m = s.match(/^([\d.\s]+)-\s*\d$/);
-            if (m) s = m[1];
-            return s.replace(/\D/g, '');
-        }
-
-        // Fecha -> {fecha:'dd/mm/yyyy', mes:'MM'}; si no se puede leer, usa el mes de la carpeta
-        function parseDate(v, fbMes) {
-            let d, m, y, t;
-            if (typeof v === 'number' && v > 20000 && v < 80000) {
-                const p = XLSX.SSF.parse_date_code(v);
-                if (p) { d = p.d; m = p.m; y = p.y; }
-            } else {
-                const s = String(v == null ? '' : v).trim();
-                if ((t = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/))) { y = +t[1]; m = +t[2]; d = +t[3]; }
-                else if ((t = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/))) { d = +t[1]; m = +t[2]; y = +t[3]; }
-                else if (/^\d+(\.\d+)?$/.test(s) && +s > 20000 && +s < 80000) {
-                    const p = XLSX.SSF.parse_date_code(+s);
-                    if (p) { d = p.d; m = p.m; y = p.y; }
-                }
-            }
-            if (!m || m < 1 || m > 12) return { fecha: '', mes: fbMes || '00' };
-            return { fecha: pad2(d) + '/' + pad2(m) + '/' + y, mes: pad2(m) };
-        }
-
-        // Localiza la fila de encabezados (la que contiene "Documento") y mapea nombre-normalizado -> columna
-        function readTable(wb) {
-            const ws = wb.Sheets[wb.SheetNames[0]];
-            const a = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
-            let h = a.findIndex((r, i) => i < 40 && r.some(c => norm(c).includes('documento')));
-            if (h < 0) h = 0;
-            const idx = {};
-            (a[h] || []).forEach((c, i) => { const k = norm(c); if (k && !(k in idx)) idx[k] = i; });
-            return { a, h, idx };
-        }
-        const cols = (idx, names) => names.map(n => idx[norm(n)]).filter(i => i !== undefined);
-        const pick = (r, ixs) => { for (let k = 0; k < ixs.length; k++) { const v = r[ixs[k]]; if (v !== '' && v !== undefined && v !== null) return v; } return ''; };
-
-        function parseVentas(wb, mesFb, nits) {
-            const { a, h, idx } = readTable(wb);
-            const I = {
-                doc: cols(idx, ['Documento']),
-                nit: cols(idx, ['Nit', 'CC. Tercero', 'Nit Origen', 'Nit Tercero']),
-                fecha: cols(idx, ['Fecha', 'Fecha Factura']),
-                cli: cols(idx, ['Razon Social', 'Nombre Tercero', 'Cliente', 'Nombre Cliente']),
-                bod: cols(idx, ['Bodega Encabezado', 'Bodega Detalle', 'Bodega']),
-                art: cols(idx, ['Detallado Descripcion Articulo', 'Descripcion Articulo', 'Articulo']),
-                uni: cols(idx, ['Unidades totales', 'Cantidades Venta', 'Cantidad']),
-                tf: cols(idx, ['Total Factura']),
-                tl: cols(idx, ['Detallado Precio Total'])
-            };
-            const totIx = I.tf.concat(I.tl);
-            const out = [];
-            for (let i = h + 1; i < a.length; i++) {
-                const r = a[i];
-                const doc = String(pick(r, I.doc)).trim();
-                if (!doc || doc === 'S/D' || norm(doc) === 'total') continue;
-                const nit = cleanNit(pick(r, I.nit));
-                const dt = parseDate(pick(r, I.fecha), mesFb);
-                const client = String(pick(r, I.cli)).trim() || 'OTROS';
-                const art = String(pick(r, I.art)).trim() || 'PRODUCTO';
-                out.push({
-                    Contractual: nits.indexOf(nit) > -1 ? 'Contractual' : 'GENERAL',
-                    CCTercero: nit, Documento: doc, Fecha: dt.fecha, Mes: dt.mes,
-                    Client: client,
-                    Bodega: String(pick(r, I.bod)).trim() || 'CEDI',
-                    Articulo: art,
-                    Unidades: Math.abs(num(pick(r, I.uni))),
-                    Total: Math.abs(num(pick(r, totIx))),
-                    Q: fold(doc + ' ' + nit + ' ' + client + ' ' + art)
-                });
-            }
-            // "Total Factura" suele repetirse en cada línea de la misma factura: si es así, se cuenta una sola vez
-            if (I.tf.length) {
-                const byDoc = new Map();
-                out.forEach(o => { let g = byDoc.get(o.Documento); if (!g) byDoc.set(o.Documento, g = []); g.push(o); });
-                let multi = 0, same = 0;
-                byDoc.forEach(g => { if (g.length > 1) { multi++; if (g.every(x => x.Total === g[0].Total)) same++; } });
-                if (multi > 0 && same / multi >= 0.8) byDoc.forEach(g => { for (let k = 1; k < g.length; k++) g[k].Total = 0; });
-            }
-            return out;
-        }
-
-        function parseRem(wb, mesFb, nits) {
-            const { a, h, idx } = readTable(wb);
-            const I = {
-                doc: cols(idx, ['Documento']),
-                nit: cols(idx, ['CC. Tercero', 'Nit']),
-                fecha: cols(idx, ['Fecha y hora Remisión', 'Fecha']),
-                cli: cols(idx, ['Nombre Cliente', 'Nombre Tercero']),
-                bod: cols(idx, ['Bodega detalle', 'Bodega']),
-                art: cols(idx, ['Descripcion']),
-                ped: cols(idx, ['Cantidad pedida por el cliente']),
-                rem: cols(idx, ['Unidades Remisionadas al cliente']),
-                fac: cols(idx, ['Unidades facturadas al cliente']),
-                pen: cols(idx, ['Pendientes pedidas por el cliente']),
-                tot: cols(idx, ['Total Venta con IVA'])
-            };
-            const out = [];
-            for (let i = h + 1; i < a.length; i++) {
-                const r = a[i];
-                const doc = String(pick(r, I.doc)).trim();
-                if (!doc || doc === 'S/D' || norm(doc) === 'total') continue;
-                const nit = cleanNit(pick(r, I.nit));
-                const dt = parseDate(pick(r, I.fecha), mesFb);
-                const ped = Math.abs(num(pick(r, I.ped)));
-                const rem = Math.abs(num(pick(r, I.rem)));
-                const fac = Math.abs(num(pick(r, I.fac)));
-                const penRaw = pick(r, I.pen);
-                const pen = penRaw === '' ? Math.max(0, ped - rem) : Math.abs(num(penRaw));
-                const client = String(pick(r, I.cli)).trim() || 'OTROS';
-                const art = String(pick(r, I.art)).trim() || 'MEDICAMENTO';
-                out.push({
-                    Documento: doc, CCTercero: nit,
-                    Contractual: nits.indexOf(nit) > -1 ? 'Contractual' : 'GENERAL',
-                    Client: client,
-                    Bodega: String(pick(r, I.bod)).trim() || 'CEDI',
-                    Articulo: art,
-                    Pedidas: ped, Remisionadas: rem, Facturadas: fac, Pendientes: pen,
-                    Total: Math.abs(num(pick(r, I.tot))),
-                    Mes: dt.mes, Fecha: dt.fecha,
-                    Q: fold(doc + ' ' + nit + ' ' + client + ' ' + art)
-                });
-            }
-            return out;
-        }
-
-        self.onmessage = async function (e) {
-            const t = e.data;
-            try {
-                const res = await fetch(t.url);
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                const wb = XLSX.read(await res.arrayBuffer(), { type: 'array', cellStyles: false, cellFormula: false, cellHTML: false });
-                const rows = t.kind === 'ventas' ? parseVentas(wb, t.mes, t.nits) : parseRem(wb, t.mes, t.nits);
-                self.postMessage({ id: t.id, rows: rows });
-            } catch (err) {
-                self.postMessage({ id: t.id, error: String(err && err.message || err) });
-            }
-        };
-    }
-
-    /* =====================================================================
-       CACHÉ (IndexedDB): cada archivo se guarda ya procesado, con la clave
-       sha de GitHub. Si el archivo no cambió, no se descarga ni se parsea.
-       ===================================================================== */
-    const Cache = {
-        db: null,
-        open() {
-            return new Promise(res => {
-                try {
-                    const rq = indexedDB.open('mennar-dashboard', 1);
-                    rq.onupgradeneeded = () => rq.result.createObjectStore('files', { keyPath: 'key' });
-                    rq.onsuccess = () => { Cache.db = rq.result; res(true); };
-                    rq.onerror = rq.onblocked = () => res(false);
-                } catch (e) { res(false); }
-            });
-        },
-        getAll() {
-            return new Promise(res => {
-                if (!Cache.db) return res(new Map());
-                try {
-                    const rq = Cache.db.transaction('files').objectStore('files').getAll();
-                    rq.onsuccess = () => res(new Map(rq.result.map(r => [r.key, r])));
-                    rq.onerror = () => res(new Map());
-                } catch (e) { res(new Map()); }
-            });
-        },
-        put(rec) {
-            if (!Cache.db) return;
-            try { Cache.db.transaction('files', 'readwrite').objectStore('files').put(rec); } catch (e) { /* caché opcional */ }
-        },
-        prune(validKeys) {
-            if (!Cache.db) return;
-            try {
-                const st = Cache.db.transaction('files', 'readwrite').objectStore('files');
-                st.getAllKeys().onsuccess = ev => ev.target.result.forEach(k => { if (!validKeys.has(k)) st.delete(k); });
-            } catch (e) { /* ignorar */ }
-        }
-    };
-
-    /* =====================================================================
-       ESTADO
-       ===================================================================== */
     const S = {
-        parts: new Map(),          // path -> {kind, mes, order, rows}
-        fact: [], rem: [],         // filas planas, reconstruidas desde parts
-        F: [], R: [],              // filas filtradas
+        fact: [], rem: [],
+        F: [], R: [],
         tab: 'facturacion',
         page: 1,
-        dirty: false,
-        loading: false,
-        charts: {},
-        renderTimer: 0,
-        searchTimer: 0
+        charts: {}
     };
 
     const $ = id => document.getElementById(id);
     const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ESC[c]);
-    const fold = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const fold = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const nf = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
     const cop = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
     const compact = new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 });
-    const fmtCOP = v => cop.format(v);
-    const fmtN = v => nf.format(v);
-
-    /* =====================================================================
-       CARGA DESDE GITHUB
-       ===================================================================== */
-    const rawUrl = path => `https://raw.githubusercontent.com/${CONFIG.REPO}/${CONFIG.REF}/${path.split('/').map(encodeURIComponent).join('/')}`;
-
-    function classify(items) {
-        const out = [];
-        for (const it of items) {
-            const m = it.path.match(/^([^/]+)\/([^/]+\.xlsx?)$/i);
-            if (!m || m[2].startsWith('~$')) continue;
-            const folder = fold(m[1]).replace(/[^a-z0-9]+/g, ' ').trim();
-            const kind = folder.endsWith('ventas') ? 'ventas' : folder.endsWith('remisiones') ? 'rem' : null;
-            if (!kind) continue;
-            const mi = MONTH_NAMES.findIndex(n => folder.startsWith(n));
-            out.push({
-                path: it.path, sha: it.sha, url: it.url, kind,
-                mes: mi >= 0 ? String(mi + 1).padStart(2, '0') : '00',
-                order: (mi >= 0 ? mi : 99) * 10 + (kind === 'ventas' ? 0 : 1)
-            });
-        }
-        return out;
-    }
-
-    // Una sola petición al API lista todo el repo (antes eran 20 y se agotaba el límite de GitHub)
-    async function listRepoFiles() {
-        const r = await fetch(`https://api.github.com/repos/${CONFIG.REPO}/git/trees/${CONFIG.REF}?recursive=1`, { headers: { Accept: 'application/vnd.github+json' } });
-        if (!r.ok) throw new Error('GitHub API ' + r.status + (r.status === 403 ? ' (límite de peticiones)' : ''));
-        const j = await r.json();
-        if (!j.truncated) {
-            return classify(j.tree.filter(t => t.type === 'blob').map(t => ({ path: t.path, sha: t.sha, url: rawUrl(t.path) })));
-        }
-        // Repos enormes: respaldo carpeta por carpeta
-        const folders = [];
-        MONTH_NAMES.forEach(n => { const c = n[0].toUpperCase() + n.slice(1); folders.push(c + '_ventas', c + '_Remisiones'); });
-        const lists = await Promise.all(folders.map(async f => {
-            try {
-                const rr = await fetch(`https://api.github.com/repos/${CONFIG.REPO}/contents/${f}`);
-                if (!rr.ok) return [];
-                return (await rr.json()).filter(x => x.type === 'file').map(x => ({ path: x.path, sha: x.sha, url: x.download_url }));
-            } catch (e) { return []; }
-        }));
-        return classify(lists.flat());
-    }
+    const fmtCOP = v => cop.format(v || 0);
+    const fmtN = v => nf.format(v || 0);
 
     function setStatus(kind, msg) {
         const icons = {
             loading: 'fa-solid fa-spinner fa-spin text-blue-600',
             ok: 'fa-solid fa-circle-check text-emerald-600',
-            warn: 'fa-solid fa-triangle-exclamation text-amber-500',
             error: 'fa-solid fa-circle-xmark text-red-600'
         };
-        $('status-icon').className = icons[kind];
+        $('status-icon').className = icons[kind] || icons.loading;
         $('status-msg').textContent = msg;
-    }
-    function setProgress(done, total) {
-        const w = $('progress-wrap');
-        if (!total || done >= total) { w.classList.add('hidden'); return; }
-        w.classList.remove('hidden');
-        $('progress-bar').style.width = (done / total * 100) + '%';
-    }
-
-    async function loadData(force) {
-        if (S.loading) return;
-        S.loading = true;
-        const t0 = performance.now();
-        setStatus('loading', 'Consultando repositorio de GitHub...');
-
-        if (!Cache.db) await Cache.open();
-        const cached = force ? new Map() : await Cache.getAll();
-
-        let files = null, listError = '';
-        try { files = await listRepoFiles(); } catch (e) { listError = e.message; }
-
-        // Sin conexión o límite de GitHub: se muestra lo último guardado
-        if (!files) {
-            const all = await Cache.getAll();
-            if (all.size) {
-                S.parts.clear();
-                all.forEach(r => S.parts.set(r.path, { kind: r.kind, order: r.order, rows: r.rows }));
-                S.dirty = true; renderNow();
-                setStatus('warn', `Sin acceso a GitHub (${listError}). Mostrando datos guardados.`);
-            } else {
-                setStatus('error', `No se pudo leer GitHub: ${listError}`);
-            }
-            S.loading = false; return;
-        }
-
-        // 1) Lo que ya está en caché se pinta al instante
-        S.parts.clear();
-        const pending = [];
-        const validKeys = new Set();
-        let fromCache = 0;
-        for (const f of files) {
-            const key = CONFIG.PARSER_VER + ':' + f.sha;
-            validKeys.add(key);
-            const rec = cached.get(key);
-            if (rec) { S.parts.set(f.path, { kind: f.kind, order: f.order, rows: rec.rows }); fromCache++; }
-            else pending.push(f);
-        }
-        Cache.prune(validKeys);
-        S.dirty = true;
-        renderNow();
-
-        if (!files.length) { setStatus('warn', 'No se encontraron archivos Excel en el repositorio.'); S.loading = false; return; }
-
-        // 2) Lo nuevo se descarga y procesa en paralelo con Web Workers
-        let failed = 0;
-        if (pending.length) {
-            setStatus('loading', `Procesando ${pending.length} archivo(s) nuevos en paralelo...`);
-            setProgress(0, pending.length);
-            let done = 0;
-            const url = URL.createObjectURL(new Blob([`(${workerMain.toString()})()`], { type: 'text/javascript' }));
-            const n = Math.max(2, Math.min(navigator.hardwareConcurrency || 4, 6, pending.length));
-            const queue = pending.slice();
-            let taskId = 0;
-            const workers = Array.from({ length: n }, () => new Worker(url));
-
-            const runOne = (w, f) => new Promise(res => {
-                const id = ++taskId;
-                w.onmessage = ev => { if (ev.data.id === id) res(ev.data); };
-                w.onerror = ev => res({ id, error: ev.message || 'error en worker' });
-                w.postMessage({ id, url: f.url, kind: f.kind, mes: f.mes, nits: CONFIG.CONTRACTUAL_NITS });
-            });
-
-            await Promise.all(workers.map(async w => {
-                while (queue.length) {
-                    const f = queue.shift();
-                    const r = await runOne(w, f);
-                    done++;
-                    if (r.error) { failed++; console.warn('Archivo omitido:', f.path, r.error); }
-                    else {
-                        S.parts.set(f.path, { kind: f.kind, order: f.order, rows: r.rows });
-                        Cache.put({ key: CONFIG.PARSER_VER + ':' + f.sha, path: f.path, kind: f.kind, order: f.order, rows: r.rows });
-                        S.dirty = true;
-                    }
-                    setProgress(done, pending.length);
-                    setStatus('loading', `Procesando archivos ${done}/${pending.length}...`);
-                    scheduleRender();
-                }
-            }));
-            workers.forEach(w => w.terminate());
-            URL.revokeObjectURL(url);
-            setProgress(1, 1);
-        }
-
-        renderNow();
-        const secs = ((performance.now() - t0) / 1000).toFixed(1);
-        const msg = `Listo en ${secs}s · ${files.length - failed} archivos (${fromCache} desde caché, ${pending.length - failed} descargados)` + (failed ? ` · ${failed} con error` : '');
-        setStatus(failed ? 'warn' : 'ok', msg);
-        S.loading = false;
     }
 
     /* =====================================================================
-       DATOS → FILTROS → RENDER
+       CARGAR DATOS DESDE ARCHIVOS PARQUET USANDO DUCKDB-WASM
        ===================================================================== */
-    function rebuild() {
-        const parts = [...S.parts.entries()].sort((a, b) => a[1].order - b[1].order || (a[0] < b[0] ? -1 : 1));
-        const fact = [], rem = [];
-        for (const [, p] of parts) {
-            const dst = p.kind === 'ventas' ? fact : rem;
-            for (let i = 0; i < p.rows.length; i++) dst.push(p.rows[i]);
+    async function loadData() {
+        setStatus('loading', 'Inicializando motor DuckDB-WASM...');
+        try {
+            const DUCKDB_BUNDLES = duckdb.getJsDelivrBundles();
+            const bundle = await duckdb.selectBundle(DUCKDB_BUNDLES);
+            const worker = await duckdb.createWorker(bundle.mainWorker);
+            const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(), worker);
+            await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+            const conn = await db.connect();
+
+            setStatus('loading', 'Leyendo archivos Parquet desde el repositorio...');
+
+            // Buscar archivos Parquet en las carpetas correspondientes
+            const rutasVentas = ['./Parquet_General_Ventas/Ventas.parquet', './Parquet_General_Ventas/ventas.parquet'];
+            const rutasRem = ['./Parquet_General_Remisiones/Remisiones.parquet', './Parquet_General_Remisiones/remisiones.parquet'];
+
+            let loadedVentas = false;
+            for (const r of rutasVentas) {
+                try {
+                    await db.registerFileURL('ventas.parquet', r, duckdb.DuckDBDataProtocol.HTTP, false);
+                    await conn.query(`SELECT 1 FROM 'ventas.parquet' LIMIT 1`);
+                    loadedVentas = true; break;
+                } catch (e) {}
+            }
+
+            let loadedRem = false;
+            for (const r of rutasRem) {
+                try {
+                    await db.registerFileURL('remisiones.parquet', r, duckdb.DuckDBDataProtocol.HTTP, false);
+                    await conn.query(`SELECT 1 FROM 'remisiones.parquet' LIMIT 1`);
+                    loadedRem = true; break;
+                } catch (e) {}
+            }
+
+            // Mapeo dinámico de datos de Ventas
+            if (loadedVentas) {
+                const res = await conn.query(`SELECT * FROM 'ventas.parquet'`);
+                const rawVentas = res.toArray().map(row => row.toJSON());
+                S.fact = rawVentas.map(r => {
+                    const doc = String(r['Documento'] || r['Numero Factura'] || '').trim();
+                    const nit = String(r['Documento Cliente'] || r['CC. Tercero'] || r['Nit'] || '').trim();
+                    const client = String(r['Razon Social Cliente'] || r['Nombre Cliente'] || 'OTROS').trim();
+                    const art = String(r['Descripcion'] || r['Articulo'] || 'PRODUCTO').trim();
+                    return {
+                        Contractual: CONFIG.CONTRACTUAL_NITS.includes(nit) ? 'Contractual' : 'GENERAL',
+                        CCTercero: nit, Documento: doc,
+                        Fecha: r['Fecha Factura'] ? String(r['Fecha Factura']).slice(0, 10) : '',
+                        Mes: r['Fecha Factura'] ? String(r['Fecha Factura']).slice(5, 7) : '00',
+                        Client: client, Bodega: String(r['Bodega Encabezado'] || 'CEDI').trim(),
+                        Articulo: art,
+                        Unidades: Math.abs(Number(r['Cantidad'] || r['Unidades'] || 0)),
+                        Total: Math.abs(Number(r['Total Venta'] || r['Valor Facturado'] || 0)),
+                        Q: fold(doc + ' ' + nit + ' ' + client + ' ' + art)
+                    };
+                });
+            }
+
+            // Mapeo dinámico de datos de Remisiones
+            if (loadedRem) {
+                const res = await conn.query(`SELECT * FROM 'remisiones.parquet'`);
+                const rawRem = res.toArray().map(row => row.toJSON());
+                S.rem = rawRem.map(r => {
+                    const doc = String(r['Documento'] || '').trim();
+                    const nit = String(r['CC. Tercero'] || r['Nit'] || '').trim();
+                    const client = String(r['Nombre Cliente'] || 'OTROS').trim();
+                    const art = String(r['Descripcion'] || 'MEDICAMENTO').trim();
+                    const ped = Math.abs(Number(r['Cantidad pedida por el cliente'] || 0));
+                    const rem = Math.abs(Number(r['Unidades Remisionadas al cliente'] || 0));
+                    const fac = Math.abs(Number(r['Unidades facturadas al cliente'] || 0));
+                    const pen = Math.abs(Number(r['Pendientes pedidas por el cliente'] || Math.max(0, ped - rem)));
+                    return {
+                        Documento: doc, CCTercero: nit,
+                        Contractual: CONFIG.CONTRACTUAL_NITS.includes(nit) ? 'Contractual' : 'GENERAL',
+                        Client: client, Bodega: String(r['Bodega detalle'] || 'CEDI').trim(),
+                        Articulo: art, Pedidas: ped, Remisionadas: rem, Facturadas: fac, Pendientes: pen,
+                        Total: Math.abs(Number(r['Total Venta con IVA'] || 0)),
+                        Mes: r['Fecha Factura'] ? String(r['Fecha Factura']).slice(5, 7) : '00',
+                        Fecha: r['Fecha Factura'] ? String(r['Fecha Factura']).slice(0, 10) : '',
+                        Q: fold(doc + ' ' + nit + ' ' + client + ' ' + art)
+                    };
+                });
+            }
+
+            $('cnt-fact').textContent = fmtN(S.fact.length);$('cnt-rem').textContent = fmtN(S.rem.length);
+
+            fillFilters();
+            renderNow();
+            setStatus('ok', `¡Archivos Parquet procesados con éxito! (${S.fact.length} ventas / ${S.rem.length} remisiones)`);
+
+        } catch (err) {
+            console.error("Error al cargar Parquet:", err);
+            setStatus('error', 'Error cargando Parquet: ' + (err.message || 'Verifica que los archivos existan en las carpetas.'));
         }
-        S.fact = fact; S.rem = rem; S.dirty = false;
-        $('cnt-fact').textContent = fmtN(fact.length);
-        $('cnt-rem').textContent = fmtN(rem.length);
-        fillFilters();
     }
 
+    /* =====================================================================
+       FILTROS Y RENDERIZADO
+       ===================================================================== */
     function fillSelect(id, values) {
         const s = $(id), cur = s.value;
         const first = s.options[0];
         const frag = document.createDocumentFragment();
         frag.appendChild(first.cloneNode(true));
         values.forEach(v => { if (v) { const o = document.createElement('option'); o.value = v; o.textContent = v; frag.appendChild(o); } });
-        s.innerHTML = '';
-        s.appendChild(frag);
-        s.value = values.includes(cur) ? cur : '';
+        s.innerHTML = ''; s.appendChild(frag); s.value = values.includes(cur) ? cur : '';
     }
+
     function fillFilters() {
         const c = new Set(), cl = new Set(), b = new Set();
         for (const pool of [S.fact, S.rem]) for (let i = 0; i < pool.length; i++) { c.add(pool[i].Contractual); cl.add(pool[i].Client); b.add(pool[i].Bodega); }
@@ -734,10 +426,11 @@
 
     function getFilters() {
         return {
-            c: $('flt-contractual').value, m: $('flt-mes').value, cl: $('flt-client').value,
+            c: $('flt-contractual').value, m: $('flt-mes').value, cl:$('flt-client').value,
             b: $('flt-bodega').value, q: fold($('flt-search').value.trim())
         };
     }
+
     function filterPool(pool, f) {
         if (!f.c && !f.m && !f.cl && !f.b && !f.q) return pool;
         const out = [];
@@ -753,30 +446,25 @@
         return out;
     }
 
-    function scheduleRender() {
-        if (S.renderTimer) return;
-        S.renderTimer = setTimeout(() => { S.renderTimer = 0; renderNow(); }, 300);   // máx ~3 repintados/s durante la carga
-    }
     function renderNow() {
-        clearTimeout(S.renderTimer); S.renderTimer = 0;
-        if (S.dirty) rebuild();
         const f = getFilters();
-        if (S.tab === 'facturacion' || S.tab === 'correlacion') S.F = filterPool(S.fact, f);
-        if (S.tab !== 'facturacion') S.R = filterPool(S.rem, f);
+        S.F = filterPool(S.fact, f);
+        S.R = filterPool(S.rem, f);
+
         if (S.tab === 'facturacion') renderFacturacion();
         else if (S.tab === 'remisiones') renderRemisiones();
         else if (S.tab === 'pendientes') renderPendientes();
         else renderCorrelacion();
         renderTablePage();
     }
+
     function applyFilters() { S.page = 1; renderNow(); }
-    function onSearch() { clearTimeout(S.searchTimer); S.searchTimer = setTimeout(applyFilters, 150); }
+    function onSearch() { renderNow(); }
 
     function switchTab(tab) {
         S.tab = tab; S.page = 1;
         ['facturacion', 'remisiones', 'pendientes', 'correlacion'].forEach(t => {
-            $('view-' + t).classList.toggle('hidden', t !== tab);
-            $('tab-' + t).className = t === tab
+            $('view-' + t).classList.toggle('hidden', t !== tab);$('tab-' + t).className = t === tab
                 ? 'py-3 border-b-2 border-mennar-blue text-mennar-blue flex items-center gap-2'
                 : 'py-3 border-b-2 border-transparent hover:text-mennar-blue flex items-center gap-2';
         });
@@ -784,13 +472,11 @@
         renderNow();
     }
 
-    /* ---------- Gráficas: se crean una vez y luego solo se actualizan ---------- */
     function chartUpsert(key, canvasId, type, data, options) {
         const ex = S.charts[key];
         if (ex) { ex.data.labels = data.labels; ex.data.datasets = data.datasets; ex.update('none'); return ex; }
         return (S.charts[key] = new Chart($(canvasId), { type, data, options }));
     }
-    const PALETTE = ['#003366', '#2e7d32', '#1e88e5', '#f59e0b', '#8b5cf6', '#ef4444'];
 
     function renderFacturacion() {
         const rows = S.F;
@@ -802,52 +488,40 @@
             byContract.set(d.Contractual, (byContract.get(d.Contractual) || 0) + d.Total);
             byClient.set(d.Client, (byClient.get(d.Client) || 0) + d.Total);
         }
-        $('kpi-val').textContent = fmtCOP(tot);
-        $('kpi-docs').textContent = fmtN(docs.size);
-        $('kpi-units').textContent = fmtN(units);
-        $('kpi-ticket').textContent = fmtCOP(docs.size ? tot / docs.size : 0);
+        $('kpi-val').textContent = fmtCOP(tot);$('kpi-docs').textContent = fmtN(docs.size);
+        $('kpi-units').textContent = fmtN(units);$('kpi-ticket').textContent = fmtCOP(docs.size ? tot / docs.size : 0);
 
         chartUpsert('contract', 'chart-contractual', 'doughnut',
-            { labels: [...byContract.keys()], datasets: [{ data: [...byContract.values()], backgroundColor: PALETTE }] },
-            { responsive: true, maintainAspectRatio: false, animation: false,
-              plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } },
-                         tooltip: { callbacks: { label: c => ` ${c.label}: ${fmtCOP(c.parsed)}` } } } });
+            { labels: [...byContract.keys()], datasets: [{ data: [...byContract.values()], backgroundColor: ['#003366', '#2e7d32', '#1e88e5'] }] },
+            { responsive: true, maintainAspectRatio: false, animation: false });
 
         const top = [...byClient.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
         chartUpsert('clients', 'chart-clients', 'bar',
-            { labels: top.map(s => s[0].length > 28 ? s[0].slice(0, 27) + '…' : s[0]), datasets: [{ label: 'Ventas COP', data: top.map(s => s[1]), backgroundColor: '#2e7d32' }] },
-            { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
-              plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + fmtCOP(c.parsed.x) } } },
-              scales: { x: { ticks: { callback: v => compact.format(v) } } } });
+            { labels: top.map(s => s[0].slice(0, 20)), datasets: [{ label: 'Ventas COP', data: top.map(s => s[1]), backgroundColor: '#2e7d32' }] },
+            { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false });
     }
 
     function renderRemisiones() {
         const rows = S.R;
         let ped = 0, rem = 0, fac = 0, pen = 0;
         for (let i = 0; i < rows.length; i++) { const d = rows[i]; ped += d.Pedidas; rem += d.Remisionadas; fac += d.Facturadas; pen += d.Pendientes; }
-        $('kpi-rem-ped').textContent = fmtN(ped);
-        $('kpi-rem-rem').textContent = fmtN(rem);
-        $('kpi-rem-fac').textContent = fmtN(fac);
-        $('kpi-rem-pen').textContent = fmtN(pen);
+        $('kpi-rem-ped').textContent = fmtN(ped);$('kpi-rem-rem').textContent = fmtN(rem);
+        $('kpi-rem-fac').textContent = fmtN(fac);$('kpi-rem-pen').textContent = fmtN(pen);
+
         chartUpsert('rem', 'chart-rem-comp', 'bar',
             { labels: ['Pedidas', 'Remisionadas', 'Facturadas', 'Pendientes'], datasets: [{ data: [ped, rem, fac, pen], backgroundColor: ['#1e88e5', '#2e7d32', '#8b5cf6', '#ef4444'] }] },
-            { responsive: true, maintainAspectRatio: false, animation: false,
-              plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + fmtN(c.parsed.y) + ' uds' } } },
-              scales: { y: { ticks: { callback: v => compact.format(v) } } } });
+            { responsive: true, maintainAspectRatio: false, animation: false });
     }
 
-    function groupPendientes(rows) {
+    function renderPendientes() {
         const g = new Map();
-        for (let i = 0; i < rows.length; i++) {
-            const d = rows[i], k = d.CCTercero || d.Client;
+        for (let i = 0; i < S.R.length; i++) {
+            const d = S.R[i], k = d.CCTercero || d.Client;
             let o = g.get(k);
             if (!o) g.set(k, o = { nit: d.CCTercero, cl: d.Client, tipo: d.Contractual, ped: 0, rem: 0, pen: 0 });
             o.ped += d.Pedidas; o.rem += d.Remisionadas; o.pen += d.Pendientes;
         }
-        return [...g.values()].filter(o => o.pen > 0).sort((a, b) => b.pen - a.pen);
-    }
-    function renderPendientes() {
-        const list = groupPendientes(S.R);
+        const list = [...g.values()].filter(o => o.pen > 0).sort((a, b) => b.pen - a.pen);
         let tot = 0; list.forEach(o => tot += o.pen);
         $('lbl-deuda-total').textContent = `${fmtN(list.length)} clientes · ${fmtN(tot)} uds pendientes`;
         $('tbl-deuda-body').innerHTML = list.slice(0, 300).map(o => `
@@ -858,128 +532,29 @@
                 <td class="p-2 text-right num">${fmtN(o.ped)}</td>
                 <td class="p-2 text-right text-emerald-700 font-semibold num">${fmtN(o.rem)}</td>
                 <td class="p-2 text-right text-red-600 font-bold num">${fmtN(o.pen)}</td>
-            </tr>`).join('') || '<tr><td colspan="6" class="p-4 text-center text-gray-400">Sin saldos pendientes con los filtros actuales</td></tr>';
-    }
-
-    /* ---------- Correlación remisiones ↔ facturación ---------- */
-    function pearson(x, y) {
-        const n = x.length;
-        if (n < 3) return null;
-        let sx = 0, sy = 0;
-        for (let i = 0; i < n; i++) { sx += x[i]; sy += y[i]; }
-        const mx = sx / n, my = sy / n;
-        let sxy = 0, sxx = 0, syy = 0;
-        for (let i = 0; i < n; i++) { const a = x[i] - mx, b = y[i] - my; sxy += a * b; sxx += a * a; syy += b * b; }
-        const den = Math.sqrt(sxx * syy);
-        return den ? sxy / den : null;
-    }
-    function corrLabel(r) {
-        if (r == null) return 'Datos insuficientes';
-        const a = Math.abs(r);
-        const t = a >= .9 ? 'Muy fuerte' : a >= .7 ? 'Fuerte' : a >= .4 ? 'Moderada' : a >= .2 ? 'Débil' : 'Nula';
-        return t + (r < 0 ? ' (inversa)' : ' (directa)');
+            </tr>`).join('') || '<tr><td colspan="6" class="p-4 text-center text-gray-400">Sin saldos pendientes</td></tr>';
     }
 
     function renderCorrelacion() {
-        const months = Array.from({ length: 12 }, () => ({ rem: 0, fac: 0 }));
-        const pairs = new Map();      // nit|mes -> {r, v}
-        const cli = new Map();        // nit -> acumulados por cliente
-        const getCli = d => {
-            const k = d.CCTercero || d.Client;
-            let o = cli.get(k);
-            if (!o) cli.set(k, o = { nit: d.CCTercero, cl: d.Client, rem: 0, fac: 0, val: 0 });
-            return o;
-        };
-        const getPair = (d) => {
-            const k = (d.CCTercero || d.Client) + '|' + d.Mes;
-            let o = pairs.get(k);
-            if (!o) pairs.set(k, o = { r: 0, v: 0 });
-            return o;
-        };
         let totRem = 0, totFac = 0;
-        for (let i = 0; i < S.R.length; i++) {
-            const d = S.R[i], mi = +d.Mes - 1;
-            if (mi >= 0 && mi < 12) months[mi].rem += d.Remisionadas;
-            getPair(d).r += d.Remisionadas; getCli(d).rem += d.Remisionadas; totRem += d.Remisionadas;
-        }
-        for (let i = 0; i < S.F.length; i++) {
-            const d = S.F[i], mi = +d.Mes - 1;
-            if (mi >= 0 && mi < 12) months[mi].fac += d.Unidades;
-            getPair(d).v += d.Unidades;
-            const c = getCli(d); c.fac += d.Unidades; c.val += d.Total; totFac += d.Unidades;
-        }
+        S.R.forEach(r => totRem += r.Remisionadas);
+        S.F.forEach(f => totFac += f.Unidades);
 
-        // Correlación Cliente × Mes y Mensual
-        const px = [], py = [], pts = [];
-        pairs.forEach(p => { if (p.r > 0 || p.v > 0) { px.push(p.r); py.push(p.v); pts.push({ x: p.r, y: p.v }); } });
-        const mx = [], my = [];
-        months.forEach(m => { if (m.rem > 0 || m.fac > 0) { mx.push(m.rem); my.push(m.fac); } });
-        const rPair = pearson(px, py), rMon = pearson(mx, my);
-        $('kpi-corr-pair').textContent = rPair == null ? '—' : rPair.toFixed(3);
-        $('lbl-corr-pair').textContent = `${corrLabel(rPair)} · n=${fmtN(px.length)}`;
-        $('kpi-corr-mon').textContent = rMon == null ? '—' : rMon.toFixed(3);
-        $('lbl-corr-mon').textContent = `${corrLabel(rMon)} · n=${mx.length} meses`;
         $('kpi-corr-cov').textContent = totRem ? (totFac / totRem * 100).toFixed(1) + '%' : '—';
         $('kpi-corr-gap').textContent = fmtN(totRem - totFac);
-
-        // Gráfica mensual (solo meses con datos)
-        let last = -1, first = 12;
-        months.forEach((m, i) => { if (m.rem > 0 || m.fac > 0) { if (i > last) last = i; if (i < first) first = i; } });
-        const sl = last >= 0 ? months.slice(first, last + 1) : [];
-        const labels = last >= 0 ? MONTH_SHORT.slice(first, last + 1) : [];
-        chartUpsert('corrMon', 'chart-corr-mon', 'bar',
-            { labels, datasets: [
-                { label: 'Remisionadas', data: sl.map(m => m.rem), backgroundColor: '#1e88e5' },
-                { label: 'Facturadas (Ventas)', data: sl.map(m => m.fac), backgroundColor: '#2e7d32' } ] },
-            { responsive: true, maintainAspectRatio: false, animation: false,
-              plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 } } }, tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${fmtN(c.parsed.y)} uds` } } },
-              scales: { y: { ticks: { callback: v => compact.format(v) } } } });
-
-        // Dispersión (máx. 3000 puntos para mantener fluidez)
-        const shown = pts.length > 3000 ? pts.filter((_, i) => i % Math.ceil(pts.length / 3000) === 0) : pts;
-        let maxV = 0; shown.forEach(p => { if (p.x > maxV) maxV = p.x; if (p.y > maxV) maxV = p.y; });
-        chartUpsert('corrSc', 'chart-corr-scatter', 'scatter',
-            { datasets: [
-                { label: 'Cliente × Mes', data: shown, backgroundColor: 'rgba(30,136,229,.55)', pointRadius: 3 },
-                { label: 'Ideal (1:1)', data: [{ x: 0, y: 0 }, { x: maxV, y: maxV }], type: 'line', borderColor: '#ef4444', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0 } ] },
-            { responsive: true, maintainAspectRatio: false, animation: false,
-              plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 } } }, tooltip: { callbacks: { label: c => ` Rem: ${fmtN(c.parsed.x)} · Fact: ${fmtN(c.parsed.y)}` } } },
-              scales: { x: { title: { display: true, text: 'Remisionadas (uds)', font: { size: 10 } }, ticks: { callback: v => compact.format(v) } },
-                        y: { title: { display: true, text: 'Facturadas (uds)', font: { size: 10 } }, ticks: { callback: v => compact.format(v) } } } });
-
-        // Conciliación por cliente
-        const list = [...cli.values()].sort((a, b) => b.rem - a.rem || b.fac - a.fac);
-        $('lbl-corr-count').textContent = `${fmtN(list.length)} clientes`;
-        $('tbl-corr-body').innerHTML = list.slice(0, 300).map(o => {
-            const gap = o.rem - o.fac;
-            const cov = o.rem ? o.fac / o.rem * 100 : null;
-            const cls = cov == null ? 'text-gray-400' : cov >= 95 ? 'text-emerald-700' : cov >= 70 ? 'text-amber-600' : 'text-red-600';
-            return `<tr>
-                <td class="p-2 font-mono text-gray-500">${esc(o.nit)}</td>
-                <td class="p-2 font-bold text-mennar-blue">${esc(o.cl)}</td>
-                <td class="p-2 text-right num">${fmtN(o.rem)}</td>
-                <td class="p-2 text-right num">${fmtN(o.fac)}</td>
-                <td class="p-2 text-right num ${gap > 0 ? 'text-red-600 font-semibold' : ''}">${fmtN(gap)}</td>
-                <td class="p-2 text-right num font-bold ${cls}">${cov == null ? '—' : cov.toFixed(1) + '%'}</td>
-                <td class="p-2 text-right num text-emerald-700 font-semibold">${fmtCOP(o.val)}</td>
-            </tr>`;
-        }).join('') || '<tr><td colspan="7" class="p-4 text-center text-gray-400">Sin datos con los filtros actuales</td></tr>';
     }
 
-    /* ---------- Tabla principal paginada ---------- */
-    function currentRows() { return S.tab === 'facturacion' ? S.F : (S.tab === 'correlacion' ? [] : S.R); }
+    function currentRows() { return S.tab === 'facturacion' ? S.F : S.R; }
     function renderTablePage() {
         const data = currentRows();
         const totalPages = Math.max(1, Math.ceil(data.length / CONFIG.PAGE_SIZE));
         if (S.page > totalPages) S.page = totalPages;
         $('lbl-total-rec').textContent = fmtN(data.length);
-        $('lbl-total-pages').textContent = fmtN(totalPages);
-        $('lbl-page').textContent = S.page;
+        $('lbl-total-pages').textContent = fmtN(totalPages);$('lbl-page').textContent = S.page;
         const start = (S.page - 1) * CONFIG.PAGE_SIZE;
         const slice = data.slice(start, start + CONFIG.PAGE_SIZE);
-        $('tbl-main-body').innerHTML = slice.map(r => {
-            const units = r.Unidades !== undefined ? r.Unidades : r.Remisionadas;
-            return `<tr>
+        $('tbl-main-body').innerHTML = slice.map(r => `
+            <tr>
                 <td class="p-2 font-semibold text-amber-700">${esc(r.Contractual)}</td>
                 <td class="p-2 font-bold text-gray-700">${esc(r.Documento)}</td>
                 <td class="p-2 num">${esc(r.Fecha)}</td>
@@ -987,48 +562,19 @@
                 <td class="p-2 font-medium">${esc(r.Client)}</td>
                 <td class="p-2">${esc(r.Bodega)}</td>
                 <td class="p-2 text-gray-800">${esc(r.Articulo)}</td>
-                <td class="p-2 text-right font-bold num">${fmtN(units)}</td>
+                <td class="p-2 text-right font-bold num">${fmtN(r.Unidades || r.Remisionadas)}</td>
                 <td class="p-2 text-right font-bold text-emerald-700 num">${fmtCOP(r.Total)}</td>
-            </tr>`;
-        }).join('') || '<tr><td colspan="9" class="p-4 text-center text-gray-400">Sin registros con los filtros actuales</td></tr>';
+            </tr>`).join('') || '<tr><td colspan="9" class="p-4 text-center text-gray-400">Sin registros encontrados</td></tr>';
     }
+
     function changePage(dir) { goPage(S.page + dir); }
     function goPage(p) {
         const totalPages = Math.max(1, Math.ceil(currentRows().length / CONFIG.PAGE_SIZE));
-        const np = Math.min(totalPages, Math.max(1, p));
-        if (np !== S.page) { S.page = np; renderTablePage(); }
+        S.page = Math.min(totalPages, Math.max(1, p));
+        renderTablePage();
     }
 
-    /* ---------- Exportar a Excel (la librería se descarga solo al pulsar el botón) ---------- */
-    function loadScript(src) {
-        return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
-    }
-    async function downloadPendientesExcel() {
-        try {
-            if (!window.XLSX) await loadScript(CONFIG.XLSX_URL);
-            const rows = filterPool(S.rem, getFilters()).filter(d => d.Pendientes > 0).map(({ Q, ...rest }) => rest);
-            const resumen = groupPendientes(filterPool(S.rem, getFilters())).map(o => ({
-                'NIT': o.nit, 'Cliente': o.cl, 'Tipo Contrato': o.tipo, 'Cant. Pedida': o.ped, 'Cant. Entregada': o.rem, 'Saldo Pendiente': o.pen }));
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumen), 'Resumen por cliente');
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Detalle');
-            XLSX.writeFile(wb, 'Mennar_Pendientes_2026.xlsx');
-        } catch (e) {
-            setStatus('error', 'No se pudo generar el Excel: ' + (e.message || 'error de red'));
-        }
-    }
-
-    /* ---------- Arranque ---------- */
-    window.addEventListener('DOMContentLoaded', () => {
-        Chart.defaults.animation = false;
-        Chart.defaults.font.size = 11;
-        switchTab('facturacion');
-        loadData(false);
-    });
-    window.addEventListener('unhandledrejection', e => { console.error(e.reason); setStatus('error', 'Error inesperado: ' + (e.reason && e.reason.message || e.reason)); });
+    window.addEventListener('DOMContentLoaded', loadData);
     </script>
 </body>
 </html>
-apps-fileview.texmex_20261001.00_p0
-index.html
-Mostrando index.html
