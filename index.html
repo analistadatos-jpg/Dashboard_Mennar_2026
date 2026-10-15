@@ -1,75 +1,4 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MENNAR S.A.S - Panel de Analítica 2026 (Parquet Engine)</title>
-
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-
-    <script>
-        tailwind.config = {
-            theme: { extend: { colors: { mennar: { blue: '#003366', lightBlue: '#1e88e5', green: '#2e7d32', bg: '#f4f6f9' } } } }
-        }
-    </script>
-    <style>
-        body { background-color: #f4f6f9; color: #212121; font-family: 'Segoe UI', system-ui, sans-serif; }
-        .card-shadow { box-shadow: 0 2px 8px rgba(0, 51, 102, 0.08); }
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        .num { font-variant-numeric: tabular-nums; }
-        tbody tr:hover { background: #f8fafc; }
-    </style>
-</head>
-<body class="min-h-screen flex flex-col">
-
-    <header class="bg-mennar-blue text-white shadow sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 py-2.5 flex justify-between items-center">
-            <div class="flex items-center gap-3">
-                <div class="bg-white text-mennar-blue font-black rounded-lg w-8 h-8 flex items-center justify-center shadow">M</div>
-                <div>
-                    <h1 class="text-lg font-bold leading-none">MENNAR S.A.S — Dashboard 2026</h1>
-                    <p class="text-[11px] text-blue-200">Motor Parquet de Alta Velocidad (DuckDB-WASM)</p>
-                </div>
-            </div>
-            <button id="btn-reload" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3 py-1.5 rounded flex items-center gap-1.5 transition">
-                <i class="fa-solid fa-rotate"></i>
-                <span>Recargar Parquet</span>
-            </button>
-        </div>
-    </header>
-
-    <div class="max-w-7xl mx-auto px-4 mt-3 w-full">
-        <div class="bg-white p-3 rounded-lg border card-shadow flex justify-between items-center text-xs">
-            <div class="flex items-center gap-2">
-                <i id="status-icon" class="fa-solid fa-spinner fa-spin text-blue-600"></i>
-                <span id="status-msg" class="font-medium text-gray-700">Cargando módulos DuckDB...</span>
-            </div>
-            <div class="flex gap-4 font-bold">
-                <span class="text-blue-700">Ventas: <span id="cnt-fact" class="num">0</span> reg</span>
-                <span class="text-amber-700">Remisiones: <span id="cnt-rem" class="num">0</span> reg</span>
-            </div>
-        </div>
-    </div>
-
-    <main class="max-w-7xl mx-auto px-4 py-3 w-full flex-grow space-y-4">
-        <section class="bg-white rounded-lg card-shadow p-4">
-            <h3 class="text-sm font-bold text-mennar-blue mb-2"><i class="fa-solid fa-table mr-2"></i>Vista Previa de Ventas Consolidadas Parquet</h3>
-            <div class="overflow-x-auto max-h-[400px]">
-                <table class="w-full text-left text-xs">
-                    <thead class="bg-mennar-blue text-white sticky top-0">
-                        <tr id="tbl-header"></tr>
-                    </thead>
-                    <tbody id="tbl-body" class="divide-y"></tbody>
-                </table>
-            </div>
-        </section>
-    </main>
-
-    <!-- Script tipo módulo para importar DuckDB-WASM correctamente -->
+<!-- Script tipo módulo con soporte para extensiones .PARQUET y .parquet -->
     <script type="module">
         import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm';
 
@@ -89,30 +18,39 @@
                 await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
                 const conn = await db.connect();
 
-                statusMsg.innerText = "Cargando archivos Parquet desde el repositorio...";
+                statusMsg.innerText = "Cargando archivos Parquet (.PARQUET) desde el repositorio...";
 
                 let archivosVentas = [];
                 let archivosRemisiones = [];
 
                 for (const mes of MESES) {
-                    const fileVentas = `./${mes}_ventas.parquet`;
-                    const fileRem = `./${mes}_Remisiones.parquet`;
+                    // Variantes de rutas para soportar .PARQUET y .parquet
+                    const posVentas = [`./${mes}_ventas.PARQUET`, `./${mes}_ventas.parquet`, `./${mes}_Ventas.PARQUET`, `./${mes}_Ventas.parquet`];
+                    const posRem = [`./${mes}_Remisiones.PARQUET`, `./${mes}_Remisiones.parquet`, `./${mes}_remisiones.PARQUET`, `./${mes}_remisiones.parquet`];
 
-                    try {
-                        await db.registerFileURL(`v_${mes}.parquet`, fileVentas, duckdb.DuckDBDataProtocol.HTTP, false);
-                        await conn.query(`SELECT 1 FROM 'v_${mes}.parquet' LIMIT 1`);
-                        archivosVentas.push(`'v_${mes}.parquet'`);
-                    } catch (e) {}
+                    // Probar cuál variante de ventas existe en GitHub Pages
+                    for (const url of posVentas) {
+                        try {
+                            await db.registerFileURL(`v_${mes}.parquet`, url, duckdb.DuckDBDataProtocol.HTTP, false);
+                            await conn.query(`SELECT 1 FROM 'v_${mes}.parquet' LIMIT 1`);
+                            archivosVentas.push(`'v_${mes}.parquet'`);
+                            break;
+                        } catch (e) {}
+                    }
 
-                    try {
-                        await db.registerFileURL(`r_${mes}.parquet`, fileRem, duckdb.DuckDBDataProtocol.HTTP, false);
-                        await conn.query(`SELECT 1 FROM 'r_${mes}.parquet' LIMIT 1`);
-                        archivosRemisiones.push(`'r_${mes}.parquet'`);
-                    } catch (e) {}
+                    // Probar cuál variante de remisiones existe en GitHub Pages
+                    for (const url of posRem) {
+                        try {
+                            await db.registerFileURL(`r_${mes}.parquet`, url, duckdb.DuckDBDataProtocol.HTTP, false);
+                            await conn.query(`SELECT 1 FROM 'r_${mes}.parquet' LIMIT 1`);
+                            archivosRemisiones.push(`'r_${mes}.parquet'`);
+                            break;
+                        } catch (e) {}
+                    }
                 }
 
                 if (archivosVentas.length === 0) {
-                    throw new Error("No se encontraron archivos Parquet en el repositorio.");
+                    throw new Error("No se pudo conectar con los archivos .PARQUET del repositorio.");
                 }
 
                 const queryVentas = `SELECT * FROM read_parquet([${archivosVentas.join(',')}]) LIMIT 50`;
@@ -138,7 +76,7 @@
                 }
 
                 statusIcon.className = "fa-solid fa-circle-check text-emerald-600";
-                statusMsg.innerText = `¡Se cargaron ${archivosVentas.length} meses de ventas y ${archivosRemisiones.length} meses de remisiones en Parquet!`;
+                statusMsg.innerText = `¡Éxito! Se reconocieron ${archivosVentas.length} meses de ventas y ${archivosRemisiones.length} meses de remisiones.`;
 
             } catch (err) {
                 console.error("Error al cargar Parquet:", err);
@@ -150,5 +88,3 @@
         document.getElementById('btn-reload').addEventListener('click', loadData);
         window.addEventListener('DOMContentLoaded', loadData);
     </script>
-</body>
-</html>
