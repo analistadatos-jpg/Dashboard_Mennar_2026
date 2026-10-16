@@ -1,90 +1,218 @@
-<!-- Script tipo módulo con soporte para extensiones .PARQUET y .parquet -->
-    <script type="module">
-        import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm';
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MENNAR S.A.S - Panel de Analítica 2026</title>
+    
+    <!-- CDNs -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/hyparquet@0.4.0/hyparquet.min.js"></script>
 
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        mennar: { blue: '#003366', lightBlue: '#1e88e5', green: '#2e7d32', bg: '#f4f6f9' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #f4f6f9; color: #212121; font-family: 'Segoe UI', sans-serif; }
+        .card-shadow { box-shadow: 0 4px 12px rgba(0, 51, 102, 0.06); }
+        #map { height: 320px; width: 100%; border-radius: 0.5rem; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-mennar-blue text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-white p-2 rounded-lg text-mennar-blue font-bold text-xl w-10 h-10 flex items-center justify-center">M</div>
+                <div>
+                    <h1 class="text-xl font-bold">MENNAR S.A.S - 2026</h1>
+                    <p class="text-xs text-blue-200">Facturación, Remisiones & Pendientes</p>
+                </div>
+            </div>
+            <button id="btn-reload" onclick="cargarTodosLosParquets()" class="bg-mennar-green hover:bg-emerald-700 text-white font-medium text-xs px-3 py-2 rounded-lg shadow flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-rotate"></i> Recargar Archivos Parquet
+            </button>
+        </div>
+    </header>
+
+    <!-- Badges de Estado -->
+    <div class="max-w-7xl mx-auto px-4 mt-4 w-full">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div class="p-3 rounded-xl border bg-white card-shadow flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i id="icon-status-fact" class="fa-solid fa-circle-notch fa-spin text-amber-500 text-base"></i>
+                    <div>
+                        <p class="font-bold text-gray-800">Parquet Facturación / Ventas</p>
+                        <p id="label-fact-file" class="text-[11px] text-gray-500">Iniciando lectura...</p>
+                    </div>
+                </div>
+                <span id="badge-fact-count" class="bg-blue-100 text-mennar-blue px-2 py-0.5 rounded font-semibold">0 reg</span>
+            </div>
+
+            <div class="p-3 rounded-xl border bg-white card-shadow flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i id="icon-status-rem" class="fa-solid fa-circle-notch fa-spin text-amber-500 text-base"></i>
+                    <div>
+                        <p class="font-bold text-gray-800">Parquet Remisiones / Pedidos</p>
+                        <p id="label-rem-file" class="text-[11px] text-gray-500">Iniciando lectura...</p>
+                    </div>
+                </div>
+                <span id="badge-rem-count" class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-semibold">0 reg</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <main class="max-w-7xl mx-auto px-4 py-4 w-full flex-grow space-y-5">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-mennar-blue">
+                <p class="text-xs font-semibold text-gray-500 uppercase">Venta Total 2026</p>
+                <h3 id="kpi-total-val" class="text-lg font-bold text-mennar-blue mt-1">$0</h3>
+            </div>
+            <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-mennar-green">
+                <p class="text-xs font-semibold text-gray-500 uppercase">Facturas</p>
+                <h3 id="kpi-total-docs" class="text-lg font-bold text-mennar-green mt-1">0</h3>
+            </div>
+            <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-amber-500">
+                <p class="text-xs font-semibold text-gray-500 uppercase">Unidades</p>
+                <h3 id="kpi-total-units" class="text-lg font-bold text-amber-600 mt-1">0</h3>
+            </div>
+            <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-purple-600">
+                <p class="text-xs font-semibold text-gray-500 uppercase">Ticket Promedio</p>
+                <h3 id="kpi-avg-ticket" class="text-lg font-bold text-purple-700 mt-1">$0</h3>
+            </div>
+            <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-teal-500">
+                <p class="text-xs font-semibold text-gray-500 uppercase">Total IVA</p>
+                <h3 id="kpi-total-iva" class="text-lg font-bold text-teal-600 mt-1">$0</h3>
+            </div>
+            <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-indigo-600">
+                <p class="text-xs font-semibold text-gray-500 uppercase">Puntos Operativos</p>
+                <h3 id="kpi-total-puntos" class="text-lg font-bold text-indigo-700 mt-1">0</h3>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl card-shadow overflow-hidden">
+            <div class="p-3 bg-gray-50 border-b flex justify-between items-center text-xs font-bold text-mennar-blue">
+                <span>Muestra de Datos Cargados</span>
+                <span id="table-record-count">0 Registros</span>
+            </div>
+            <div class="overflow-x-auto max-h-[300px]">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-mennar-blue text-white sticky top-0">
+                        <tr>
+                            <th class="p-2">Documento</th>
+                            <th class="p-2">Fecha</th>
+                            <th class="p-2">Cliente</th>
+                            <th class="p-2 text-right">Cant. Unidades</th>
+                            <th class="p-2 text-right">Total $</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="divide-y bg-white">
+                        <tr><td class="p-3 text-center text-gray-400" colspan="5">Cargando datos...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const REPO_BASE_URL = "https://raw.githubusercontent.com/analistadatos-jpg/Dashboard_Mennar_2026/main/";
         const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-        async function loadData() {
-            const statusMsg = document.getElementById('status-msg');
-            const statusIcon = document.getElementById('status-icon');
-            
+        let rawFacturacion = [];
+
+        async function fetchFirstValid(tipo, mes) {
+            const variantes = tipo === 'ventas'
+                ? [`${mes}_ventas.PARQUET`, `${mes}_ventas.parquet`, `${mes}_Ventas.PARQUET`, `${mes}_Ventas.parquet`][cite: 1]
+                : [`${mes}_Remisiones.PARQUET`, `${mes}_Remisiones.parquet`, `${mes}_remisiones.PARQUET`, `${mes}_remisiones.parquet`][cite: 1];
+
+            for (const archivo of variantes) {
+                try {
+                    const res = await fetch(REPO_BASE_URL + archivo);
+                    if (res.ok) {
+                        const buffer = await res.arrayBuffer();
+                        const data = await hyparquet.parquetReadObjects ? hyparquet.parquetReadObjects(buffer) : [];
+                        return data;
+                    }
+                } catch(e) {}
+            }
+            return [];
+        }
+
+        async function cargarTodosLosParquets() {
+            const iconStatusFact = document.getElementById('icon-status-fact');
+            const labelFact = document.getElementById('label-fact-file');
+
+            if (window.location.protocol === 'file:') {
+                iconStatusFact.className = "fa-solid fa-triangle-exclamation text-amber-600 text-base";
+                labelFact.innerHTML = "<span class='text-red-600 font-bold'>Error: Debes usar un servidor local (Live Server) o ver en GitHub Pages.</span>";
+                return;
+            }
+
+            labelFact.textContent = "Cargando archivos en paralelo...";
+
             try {
-                statusMsg.innerText = "Inicializando DuckDB-WASM...";
-                
-                const DUCKDB_BUNDLES = duckdb.getJsDelivrBundles();
-                const bundle = await duckdb.selectBundle(DUCKDB_BUNDLES);
-                const worker = await duckdb.createWorker(bundle.mainWorker);
-                const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(), worker);
-                await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-                const conn = await db.connect();
+                const promesasVentas = MESES.map(mes => fetchFirstValid('ventas', mes));
+                const resVentas = await Promise.all(promesasVentas);
+                const flatVentas = resVentas.flat();
 
-                statusMsg.innerText = "Cargando archivos Parquet (.PARQUET) desde el repositorio...";
+                rawFacturacion = flatVentas.map(item => ({
+                    Documento: item['Documento'] || item['documento'] || 'S/D',
+                    Fecha: item['Fecha'] || item['fecha'] || '01/01/2026',
+                    Client: item['Razon Social'] || item['Nombre Tercero'] || item['Cliente'] || 'OTROS',
+                    Unidades: parseFloat(item['Unidades totales'] || item['Cantidades Venta'] || 1) || 1,
+                    Total: parseFloat(item['Total Factura'] || item['Detallado Precio Total'] || 0) || 0
+                })).filter(d => d.Documento !== 'S/D');
 
-                let archivosVentas = [];
-                let archivosRemisiones = [];
+                iconStatusFact.className = "fa-solid fa-circle-check text-emerald-600 text-base";
+                labelFact.textContent = `Éxito: Cargaros ${rawFacturacion.length} registros`;
+                document.getElementById('badge-fact-count').textContent = `${rawFacturacion.length} reg`;
 
-                for (const mes of MESES) {
-                    // Variantes de rutas para soportar .PARQUET y .parquet
-                    const posVentas = [`./${mes}_ventas.PARQUET`, `./${mes}_ventas.parquet`, `./${mes}_Ventas.PARQUET`, `./${mes}_Ventas.parquet`];
-                    const posRem = [`./${mes}_Remisiones.PARQUET`, `./${mes}_Remisiones.parquet`, `./${mes}_remisiones.PARQUET`, `./${mes}_remisiones.parquet`];
-
-                    // Probar cuál variante de ventas existe en GitHub Pages
-                    for (const url of posVentas) {
-                        try {
-                            await db.registerFileURL(`v_${mes}.parquet`, url, duckdb.DuckDBDataProtocol.HTTP, false);
-                            await conn.query(`SELECT 1 FROM 'v_${mes}.parquet' LIMIT 1`);
-                            archivosVentas.push(`'v_${mes}.parquet'`);
-                            break;
-                        } catch (e) {}
-                    }
-
-                    // Probar cuál variante de remisiones existe en GitHub Pages
-                    for (const url of posRem) {
-                        try {
-                            await db.registerFileURL(`r_${mes}.parquet`, url, duckdb.DuckDBDataProtocol.HTTP, false);
-                            await conn.query(`SELECT 1 FROM 'r_${mes}.parquet' LIMIT 1`);
-                            archivosRemisiones.push(`'r_${mes}.parquet'`);
-                            break;
-                        } catch (e) {}
-                    }
-                }
-
-                if (archivosVentas.length === 0) {
-                    throw new Error("No se pudo conectar con los archivos .PARQUET del repositorio.");
-                }
-
-                const queryVentas = `SELECT * FROM read_parquet([${archivosVentas.join(',')}]) LIMIT 50`;
-                const resVentas = await conn.query(queryVentas);
-                const arrayVentas = resVentas.toArray().map(r => r.toJSON());
-
-                let cntRem = 0;
-                if (archivosRemisiones.length > 0) {
-                    const queryRem = `SELECT COUNT(*) as total FROM read_parquet([${archivosRemisiones.join(',')}])`;
-                    const resRem = await conn.query(queryRem);
-                    cntRem = resRem.toArray()[0].toJSON().total;
-                }
-
-                document.getElementById('cnt-fact').innerText = arrayVentas.length;
-                document.getElementById('cnt-rem').innerText = cntRem;
-
-                if (arrayVentas.length > 0) {
-                    const keys = Object.keys(arrayVentas[0]);
-                    document.getElementById('tbl-header').innerHTML = keys.map(k => `<th class="p-2">${k}</th>`).join('');
-                    document.getElementById('tbl-body').innerHTML = arrayVentas.map(row => {
-                        return `<tr>${keys.map(k => `<td class="p-2">${row[k] ?? ''}</td>`).join('')}</tr>`;
-                    }).join('');
-                }
-
-                statusIcon.className = "fa-solid fa-circle-check text-emerald-600";
-                statusMsg.innerText = `¡Éxito! Se reconocieron ${archivosVentas.length} meses de ventas y ${archivosRemisiones.length} meses de remisiones.`;
+                renderUI();
 
             } catch (err) {
-                console.error("Error al cargar Parquet:", err);
-                statusIcon.className = "fa-solid fa-circle-xmark text-red-600";
-                statusMsg.innerText = err.message || "Error al leer Parquet.";
+                iconStatusFact.className = "fa-solid fa-circle-xmark text-red-600 text-base";
+                labelFact.textContent = "Error de conexión con GitHub Raw";
             }
         }
 
-        document.getElementById('btn-reload').addEventListener('click', loadData);
-        window.addEventListener('DOMContentLoaded', loadData);
+        function renderUI() {
+            const totalVal = rawFacturacion.reduce((a, b) => a + b.Total, 0);
+            const totalDocs = new Set(rawFacturacion.map(d => d.Documento)).size;
+            const totalUnits = rawFacturacion.reduce((a, b) => a + b.Unidades, 0);
+
+            document.getElementById('kpi-total-val').textContent = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(totalVal);
+            document.getElementById('kpi-total-docs').textContent = totalDocs;
+            document.getElementById('kpi-total-units').textContent = totalUnits.toLocaleString();
+
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = rawFacturacion.slice(0, 50).map(row => `
+                <tr>
+                    <td class="p-2 font-semibold text-gray-700">${row.Documento}</td>
+                    <td class="p-2">${row.Fecha}</td>
+                    <td class="p-2">${row.Client}</td>
+                    <td class="p-2 text-right">${row.Unidades.toLocaleString()}</td>
+                    <td class="p-2 text-right font-bold text-emerald-700">${new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(row.Total)}</td>
+                </tr>
+            `).join('');
+            document.getElementById('table-record-count').textContent = `${rawFacturacion.length} Registros`;
+        }
+
+        window.addEventListener('DOMContentLoaded', cargarTodosLosParquets);
     </script>
+</body>
+</html>
